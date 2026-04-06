@@ -94,11 +94,11 @@ class PropiedadesAceite:
         alcance de esta tesis. El modelo actual asume fluido estático
         (conducción pura), lo que constituye una limitación documentada.
     """
-    rho_0: float = 911.0    # Densidad de referencia [kg/m³] a T₀ = 20°C
+    rho_0: float = 912.66   # Densidad de referencia [kg/m³] a T₀ = 20°C
     T_0:   float = 20.0     # Temperatura de referencia [°C]
     alpha: float = 0.0803   # Coef. expansión térmica lineal [kg/(m³·°C)]
                             # Fuente: Ribeiro et al. (2017), Tabla 3
-    Cp:    float = 1746.0   # Calor específico [J/(kg·°C)]
+    Cp:    float = 1970.0   # Calor específico [J/(kg·°C)]
                             # Fuente: Fasina et al. (2008)
     k:     float = 0.17     # Conductividad térmica [W/(m·°C)]
                             # Fuente: valores típicos aceites vegetales
