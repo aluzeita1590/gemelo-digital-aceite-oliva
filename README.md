@@ -1,50 +1,68 @@
 # Gemelo Digital — Tanque de Almacenamiento de Aceite de Oliva
 
-Trabajo de Titulación · Ingeniería Civil Electrónica
-**Autor:** Sebastian Araneda · **Guía:** Dr. José Saavedra
-**Empresa colaboradora:** Las 200 · Chile, 2025
+**Trabajo de Titulación — Ingeniería Civil Electrónica, UACh**  
+Empresa colaboradora: Las 200  
+Autor: Sebastián Araneda
 
 ---
 
 ## Descripción
 
-Este repositorio contiene el desarrollo de un **gemelo digital** para un tanque prototipo de 20 litros de aceite de oliva. El sistema integra sensores IoT con un modelo matemático termofísico para estimar en tiempo real la distribución de temperatura, nivel y densidad del aceite al interior del tanque, sin necesidad de instrumentación interna.
+Sistema de gemelo digital para un tanque prototipo de 20 L de aceite de oliva, 
+organizado en una arquitectura de 4 capas escalable a los tanques industriales 
+de 30.000 L de Las 200.
 
-El prototipo sirve como banco de pruebas para validar los modelos físicos y el sistema de adquisición de datos, con miras a una futura escalabilidad a los tanques industriales de Las 200 (~30.000 L).
+El sistema estima en tiempo real la distribución espacial de temperatura T(r,z,t), 
+nivel y masa del aceite, visualizando los resultados en un dashboard Grafana.
 
 ---
 
 ## Arquitectura del sistema
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│  Capa 1 — Adquisición (ESP32)                           │
-│  DS18B20 × 5 · HC-SR04 · Celda de carga HX711          │
-│  Protocolo: MQTT sobre Wi-Fi                            │
-├─────────────────────────────────────────────────────────┤
-│  Capa 2 — Comunicación (MQTT Broker)                    │
-│  tópicos: tanque/temperatura · tanque/nivel · tanque/peso│
-├─────────────────────────────────────────────────────────┤
-│  Capa 3 — Modelo termofísico (Python)                   │
-│  Ecuación de calor 2D axisimétrica · Diferencias finitas│
-│  Asimilación de datos con corrección por sensores       │
-└─────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│  Raspberry Pi sensor (Capa 1)                                |
+|└── DS18B20 ×5, HC-SR04, HX711, Display OLED                  |
+|└── Publica por MQTT                                          │
+├──────────────────────────────────────────────────────────────┤
+│  Raspberry Pi gemelo (Capas 2, 3 y 4) — servidor provisional |
+|└── Mosquitto (broker MQTT)                                   |
+|└── Suscriptor Python → InfluxDB                              |
+|└── Modelo 2D axisimétrico (r,z)                              |
+|└── Grafana → dashboard en tiempo real│                       |
+├──────────────────────────────────────────────────────────────┤
+│  Servidor UACh (futuro) — reemplazará a la Raspberry gemelo  │
+└──────────────────────────────────────────────────────────────┘
 ```
 
----
+## Hardware (Prototipo)
 
-## Hardware (prototipo)
-
-| Sensor | Variable | Interfaz |
-|--------|----------|----------|
-| DS18B20 × 5 | Temperatura en pared exterior (5 niveles) | 1-Wire (GPIO4) |
-| HC-SR04 | Nivel de aceite (distancia) | GPIO Trig/Echo |
-| Celda de carga + HX711 | Masa total del aceite | SPI/I²C |
-| ESP32 DevKit | Adquisición y comunicación | Wi-Fi / MQTT |
-
-Los sensores DS18B20 se montan en la **pared exterior** del tanque HDPE, cubiertos con espuma aislante para evitar influencia del aire ambiente. La distribución vertical es uniforme a lo largo de la columna de aceite.
+| Componente | Función | Capa |
+|---|---|---|
+| Raspberry Pi Zero 2 W (`sensor`) | Adquisición de datos | 1 |
+| Raspberry Pi Zero 2 W (`gemelo`) | Servidor provisional | 2, 3, 4 |
+| 5× DS18B20 | Temperatura pared exterior | 1 |
+| HC-SR04 | Nivel ultrasónico | 1 |
+| HX711 + celda de carga | Masa | 1 |
+| Display OLED 128×64 I2C | Visualización local | 1 |
 
 ---
+
+## Estructura del repositorio
+
+gemelo-digital-aceite-oliva/
+├── capa1_sensor/
+│   ├── sensor.py          # Script principal Raspberry sensor
+│   └── tanque_esp32.ino   # Firmware ESP32 (referencia futura)
+├── capa2_adquisicion/
+│   └── suscriptor.py      # Broker MQTT + validación + InfluxDB
+├── capa3_modelo/
+│   ├── modelo.py          # Modelo 2D en tiempo real (Capa 3)
+│   ├── tanque_modelo_2D_v2.py  # Modelo standalone v2.1
+│   └── tanque_modelo_2D_v3.py  # Modelo standalone v3.0
+└── docs/
+├── propuesta_tesis_v5.docx
+└── plan_trabajo_v3.docx
 
 ## Modelo termofísico (Capa 3)
 
@@ -76,56 +94,72 @@ Integración temporal con **Euler explícito**. Densidad variable `ρ(T)` según
 
 El número de Rayleigh del prototipo (Ra ≈ 1.4×10⁶) indica que la convección natural es significativa. El modelo actual asume fluido estático (conducción pura), lo que constituye una limitación documentada. La incorporación de convección natural queda propuesta como trabajo futuro.
 
----
+**Propiedades del aceite (Ribeiro et al. 2017, Fasina y Colley 2008):**
+- ρ(T) = 912.66 − 0.0803·T [kg/m³]
+- Cp = 1970 J/(kg·°C)
+- k = 0.17 W/(m·°C)
+- Válido para T ∈ [10°C, 40°C]
 
-## Estructura del repositorio
+**Discretización:** diferencias finitas centradas + Euler explícito  
+**Grilla:** 15×20 nodos (Nr×Nz)  
+**Condiciones de contorno:** simetría axial en r=0 (L'Hôpital), Robin en r=R, adiabático en z=0 y z=H
 
-```
-gemelo-digital-aceite-oliva/
-├── capa1_sensor/
-│   └── tanque_esp32.ino          # Firmware ESP32: lectura de sensores y MQTT
-├── capa3_modelo/
-│   ├── tanque_modelo_2D_v2.py    # Modelo inicial (referencia)
-│   ├── tanque_modelo_2D_v3.py    # Modelo activo (grilla fina + vectorizado)
-│   └── resultados_modelo_2D_v3.png  # Gráficos de la última simulación
-└── README.md
-```
-
-> **Nota:** La capa 2 (broker MQTT) se ejecuta con Mosquitto en el computador local. No requiere código adicional en este repositorio.
+**Limitación documentada:** conducción pura sin convección natural (Ra ≈ 5×10⁶)
 
 ---
 
-## Cómo ejecutar el modelo
+## Configuración de red (laboratorio UACh)
+
+| Dispositivo | IP | Red |
+|---|---|---|
+| Raspberry `sensor` | 192.168.1.106 | TESTMEDIOS |
+| Raspberry `gemelo` | 192.168.1.105 | TESTMEDIOS |
+
+Acceso a Grafana: `http://192.168.1.105:3000`  
+Acceso al heatmap del modelo: `http://192.168.1.105:5000/heatmap`
+
+> **Nota:** El servidor provisional es una Raspberry Pi Zero 2 W. 
+> La migración al servidor del laboratorio UACh está planificada como paso siguiente.
+
+---
+
+## Pines físicos (Raspberry Pi Zero 2 W — sensor)
+
+| Sensor | Pin físico | GPIO BCM |
+|---|---|---|
+| DS18B20 DATA | 7 | GPIO 4 |
+| HC-SR04 TRIG | 18 | GPIO 24 |
+| HC-SR04 ECHO | 22 | GPIO 25 |
+| HX711 DT | 21 | GPIO 9 |
+| HX711 SCK | 23 | GPIO 11 |
+| OLED SDA | 3 | GPIO 2 |
+| OLED SCL | 5 | GPIO 3 |
+
+---
+
+## Servicios systemd
+
+Todos los servicios arrancan automáticamente al encender:
 
 ```bash
-# Instalar dependencias
-pip install numpy matplotlib
+# En gemelo
+sudo systemctl status mosquitto suscriptor modelo grafana-server
 
-# Ejecutar simulación de 8 horas (prototipo 20 L)
-python capa3_modelo/tanque_modelo_2D_v3.py
+# En sensor
+sudo systemctl status sensor
 ```
 
-El script genera automáticamente `resultados_modelo_2D_v3.png` con el mapa de temperatura 2D, perfiles radiales y axiales, y la evolución temporal del gradiente radial.
+## Comando tara (remoto)
+
+```bash
+mosquitto_pub -h 192.168.1.105 -t tanque/cmd -m "tara"
+```
 
 ---
 
-## Estado del proyecto
+## Referencias
 
-- [x] Propuesta y marco teórico
-- [x] Especificación de instrumentación (ESP32 + sensores)
-- [x] Firmware ESP32 (capa 1)
-- [x] Modelo termofísico 2D axisimétrico v3.0 (capa 3)
-- [ ] Ensamble del prototipo físico
-- [ ] Calibración experimental de `h_ext` y `alpha_K`
-- [ ] Dashboard de visualización en tiempo real (capa 4)
-- [ ] Validación experimental (objetivo: error < 1°C)
-- [ ] Escalabilidad a tanque industrial Las 200
-
----
-
-## Referencias principales
-
-- Ribeiro et al. (2017). *Eur. J. Lipid Sci. Technol.*, 119(5).
-- Fasina et al. (2008). Propiedades termofísicas aceites vegetales.
-- Çengel, Y.A. (2007). *Transferencia de calor y masa*, 3ª ed.
-- Incropera et al. (2007). *Fundamentals of Heat and Mass Transfer*, 6th ed.
+- Ribeiro et al. (2017). Eur. J. Lipid Sci. Technol., 119(5)
+- Fasina y Colley (2008). Int. J. Food Properties, 11(4)
+- Turgut et al. (2009). Int. J. Food Properties, 12(4)
+- Çengel, Y.A. (2007). Transferencia de calor y masa, 3ª ed.
