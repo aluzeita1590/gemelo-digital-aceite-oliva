@@ -27,7 +27,7 @@ def validar(datos):
     if nivel != -1 and not (0 <= nivel <= 2):
         return False, f"Nivel fuera de rango: {nivel}"
     masa = datos.get("masa_kg", -1)
-    if masa != -1 and not (0 <= masa <= 50):
+    if masa != -1 and not (-1 <= masa <= 50):
         return False, f"Masa fuera de rango: {masa}"
     return True, "OK"
 

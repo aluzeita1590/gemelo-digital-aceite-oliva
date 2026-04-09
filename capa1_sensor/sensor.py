@@ -10,7 +10,7 @@ from luma.oled.device import ssd1306
 from luma.core.render import canvas
 
 # ── Configuración ─────────────────────────────────────
-MQTT_BROKER  = "192.168.219.19"
+MQTT_BROKER  = "192.168.1.105"
 MQTT_PORT    = 1883
 MQTT_TOPIC   = "tanque/datos"
 INTERVALO_S  = 10
@@ -20,13 +20,29 @@ PIN_TRIG     = 24   # pin físico 18
 PIN_ECHO     = 25   # pin físico 22
 ALTURA_CM    = 36.6
 
+# ── Orden físico de sensores (DS0=base, DS4=tope) ─────
+SENSOR_IDS = [
+    "01215cc6aad0",  # DS0 — 0.0 cm
+    "01215cbf83da",  # DS1 — 7.5 cm
+    "01215caa0b06",  # DS2 — 15.0 cm
+    "01215ceeecc6",  # DS3 — 22.5 cm
+    "01215cb4d462",  # DS4 — 30.0 cm
+]
+Z_SENSORES = [0.0, 0.075, 0.15, 0.225, 0.30]  # alturas en metros
+
 # ── Calibración HX711 ─────────────────────────────────
 HX711_FACTOR = 23850   # unidades por kg
 
 # ── Display OLED ──────────────────────────────────────
-serial = i2c(port=1, address=0x3C)
-oled   = ssd1306(serial)
-
+try:
+    serial = i2c(port=1, address=0x3C)
+    oled   = ssd1306(serial)
+    DISPLAY_OK = True
+    print("Display OLED detectado.")
+except Exception as e:
+    oled = None
+    DISPLAY_OK = False
+    print(f"Display no disponible: {e} — continuando sin display.")
 # ── GPIO ──────────────────────────────────────────────
 GPIO.setwarnings(False)
 GPIO.setmode(GPIO.BCM)
@@ -91,18 +107,27 @@ def on_message(client, userdata, msg):
 
 mqtt_client.on_connect = on_connect
 mqtt_client.on_message = on_message
-mqtt_client.connect(MQTT_BROKER, MQTT_PORT)
+mqtt_client.reconnect_delay_set(min_delay=1, max_delay=30)
+mqtt_client.connect(MQTT_BROKER, MQTT_PORT, keepalive=60)
 mqtt_client.loop_start()
 
 # ── Funciones de lectura ──────────────────────────────
 def leer_temperaturas():
     temps = []
-    for s in sensores:
-        try:
-            temps.append(round(s.get_temperature(), 3))
-        except:
+    for sid in SENSOR_IDS:
+        encontrado = False
+        for s in sensores:
+            if s.id == sid:
+                try:
+                    temps.append(round(s.get_temperature(), 3))
+                except:
+                    temps.append(None)
+                encontrado = True
+                break
+        if not encontrado:
             temps.append(None)
     return temps
+
 
 def leer_nivel():
     lecturas = []
@@ -139,6 +164,8 @@ def leer_masa():
         return -1.0
 
 def actualizar_display(temps, nivel, masa):
+    if not DISPLAY_OK or oled is None:
+        return
     t_validas = [t for t in temps if t is not None]
     t_prom    = round(sum(t_validas)/len(t_validas), 1) if t_validas else None
     nivel_cm  = round(nivel * 100, 1) if nivel >= 0 else None
