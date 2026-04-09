@@ -19,15 +19,24 @@ nivel y masa del aceite, visualizando los resultados en un dashboard Grafana.
 
 ## Arquitectura del sistema
 
-Raspberry Pi sensor (Capa 1)
-└── DS18B20 ×5, HC-SR04, HX711, Display OLED
-└── Publica por MQTT
-Raspberry Pi gemelo (Capas 2, 3 y 4) — servidor provisional
-└── Mosquitto (broker MQTT)
-└── Suscriptor Python → InfluxDB
-└── Modelo 2D axisimétrico (r,z)
-└── Grafana → dashboard en tiempo real
-Servidor UACh (futuro) — reemplazará a la Raspberry gemelo
+**Capa 1 — Raspberry Pi `sensor`**
+- Sensores: DS18B20 ×5, HC-SR04, HX711, Display OLED
+- Publica datos por MQTT cada 10 segundos
+
+**Capa 2 — Raspberry Pi `gemelo` (servidor provisional)**
+- Broker Mosquitto recibe los mensajes MQTT
+- Suscriptor Python valida y almacena en InfluxDB
+
+**Capa 3 — Raspberry Pi `gemelo`**
+- Modelo 2D axisimétrico T(r,z,t) en tiempo real
+- Lee sensores desde InfluxDB, estima temperatura interior
+
+**Capa 4 — Raspberry Pi `gemelo`**
+- Dashboard Grafana conectado a InfluxDB
+- Heatmap del modelo disponible en puerto 5000
+
+> La Raspberry Pi `gemelo` es el servidor provisional.
+> La migración al servidor del laboratorio UACh está planificada.
 
 ---
 
@@ -46,19 +55,15 @@ Servidor UACh (futuro) — reemplazará a la Raspberry gemelo
 
 ## Estructura del repositorio
 
-gemelo-digital-aceite-oliva/
-├── capa1_sensor/
-│   ├── sensor.py          # Script principal Raspberry sensor
-│   └── tanque_esp32.ino   # Firmware ESP32 (referencia futura)
-├── capa2_adquisicion/
-│   └── suscriptor.py      # Broker MQTT + validación + InfluxDB
-├── capa3_modelo/
-│   ├── modelo.py          # Modelo 2D en tiempo real (Capa 3)
-│   ├── tanque_modelo_2D_v2.py  # Modelo standalone v2.1
-│   └── tanque_modelo_2D_v3.py  # Modelo standalone v3.0
-└── docs/
-├── propuesta_tesis_v5.docx
-└── plan_trabajo_v3.docx
+
+- `capa1_sensor/sensor.py` — Script principal Raspberry sensor
+- `capa1_sensor/tanque_esp32.ino` — Firmware ESP32 (referencia futura)
+- `capa2_adquisicion/suscriptor.py` — Broker MQTT + validación + InfluxDB
+- `capa3_modelo/modelo.py` — Modelo 2D en tiempo real
+- `capa3_modelo/tanque_modelo_2D_v2.py` — Modelo standalone v2.1
+- `capa3_modelo/tanque_modelo_2D_v3.py` — Modelo standalone v3.0
+- `docs/propuesta_tesis_v5.docx` — Propuesta formal v5
+- `docs/plan_trabajo_v3.docx` — Plan de trabajo v3
 
 ---
 
