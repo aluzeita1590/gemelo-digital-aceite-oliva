@@ -19,22 +19,15 @@ nivel y masa del aceite, visualizando los resultados en un dashboard Grafana.
 
 ## Arquitectura del sistema
 
-```
-┌──────────────────────────────────────────────────────────────┐
-│  Raspberry Pi sensor (Capa 1)                                |
-|└── DS18B20 ×5, HC-SR04, HX711, Display OLED                  |
-|└── Publica por MQTT                                          │
-├──────────────────────────────────────────────────────────────┤
-│  Raspberry Pi gemelo (Capas 2, 3 y 4) — servidor provisional |
-|└── Mosquitto (broker MQTT)                                   |
-|└── Suscriptor Python → InfluxDB                              |
-|└── Modelo 2D axisimétrico (r,z)                              |
-|└── Grafana → dashboard en tiempo real│                       |
-├──────────────────────────────────────────────────────────────┤
-│  Servidor UACh (futuro) — reemplazará a la Raspberry gemelo  │
-└──────────────────────────────────────────────────────────────┘
-```
-
+Raspberry Pi sensor (Capa 1)
+└── DS18B20 ×5, HC-SR04, HX711, Display OLED
+└── Publica por MQTT
+Raspberry Pi gemelo (Capas 2, 3 y 4) — servidor provisional
+└── Mosquitto (broker MQTT)
+└── Suscriptor Python → InfluxDB
+└── Modelo 2D axisimétrico (r,z)
+└── Grafana → dashboard en tiempo real
+Servidor UACh (futuro) — reemplazará a la Raspberry gemelo
 ## Hardware (Prototipo)
 
 | Componente | Función | Capa |
