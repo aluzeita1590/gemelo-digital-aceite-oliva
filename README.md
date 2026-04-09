@@ -28,6 +28,9 @@ Raspberry Pi gemelo (Capas 2, 3 y 4) — servidor provisional
 └── Modelo 2D axisimétrico (r,z)
 └── Grafana → dashboard en tiempo real
 Servidor UACh (futuro) — reemplazará a la Raspberry gemelo
+
+---
+
 ## Hardware (Prototipo)
 
 | Componente | Función | Capa |
