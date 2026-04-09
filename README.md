@@ -57,6 +57,8 @@ gemelo-digital-aceite-oliva/
 ├── propuesta_tesis_v5.docx
 └── plan_trabajo_v3.docx
 
+---
+
 ## Modelo termofísico (Capa 3)
 
 Resuelve la **ecuación de calor en coordenadas cilíndricas** para un fluido estático:
