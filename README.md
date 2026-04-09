@@ -115,8 +115,8 @@ El número de Rayleigh del prototipo (Ra ≈ 1.4×10⁶) indica que la convecci�
 
 | Dispositivo | IP | Red |
 |---|---|---|
-| Raspberry `sensor` | 192.168.1.106 | TESTMEDIOS |
-| Raspberry `gemelo` | 192.168.1.105 | TESTMEDIOS |
+| Raspberry `sensor` | 192.168.1.106 | wifi_control.iee |
+| Raspberry `gemelo` | 192.168.1.105 | wifi_control.iee |
 
 Acceso a Grafana: `http://192.168.1.105:3000`  
 Acceso al heatmap del modelo: `http://192.168.1.105:5000/heatmap`
