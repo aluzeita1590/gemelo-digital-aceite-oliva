@@ -45,7 +45,7 @@ nivel y masa del aceite, visualizando los resultados en un dashboard Grafana.
 | Componente | Función | Capa |
 |---|---|---|
 | Raspberry Pi Zero 2 W (`sensor`) | Adquisición de datos | 1 |
-| Raspberry Pi Zero 2 W (`gemelo`) | Servidor provisional | 2, 3, 4 |
+| Raspberry Pi 5 (`gemelo`) | Servidor provisional | 2, 3, 4 |
 | 5× DS18B20 | Temperatura pared exterior | 1 |
 | HC-SR04 | Nivel ultrasónico | 1 |
 | HX711 + celda de carga | Masa | 1 |
@@ -116,10 +116,10 @@ El número de Rayleigh del prototipo (Ra ≈ 1.4×10⁶) indica que la convecci�
 | Dispositivo | IP | Red |
 |---|---|---|
 | Raspberry `sensor` | 192.168.1.106 | wifi_control.iee |
-| Raspberry `gemelo` | 192.168.1.105 | wifi_control.iee |
+| Raspberry `gemelo5` | 192.168.1.104 | wifi_control.iee |
 
-Acceso a Grafana: `http://192.168.1.105:3000`  
-Acceso al heatmap del modelo: `http://192.168.1.105:5000/heatmap`
+Acceso a Grafana: `http://192.168.1.104:3000`  
+Acceso al heatmap del modelo: `http://192.168.1.104:5000/heatmap`
 
 > **Nota:** El servidor provisional es una Raspberry Pi Zero 2 W. 
 > La migración al servidor del laboratorio UACh está planificada como paso siguiente.
@@ -139,6 +139,31 @@ Acceso al heatmap del modelo: `http://192.168.1.105:5000/heatmap`
 | OLED SCL | 5 | GPIO 3 |
 
 ---
+
+## Pipeline de datos
+
+**Opción A — Suscriptor Python** (con validación de rangos físicos)
+- Broker: Mosquitto en gemelo5
+- Escribe en bucket: `gemelo`
+
+**Opción B — Telegraf** (más robusto, sin validación)
+- Configuración: `capa2_adquisicion/telegraf.conf`
+- Escribe en bucket: `gemelo_telegraf`
+
+## Comandos MQTT disponibles
+
+```bash
+# Cambiar fluido del modelo
+mosquitto_pub -h 192.168.1.104 -t modelo/cmd -m "fluido/agua"
+mosquitto_pub -h 192.168.1.104 -t modelo/cmd -m "fluido/aceite"
+
+# Reiniciar condición inicial del modelo
+mosquitto_pub -h 192.168.1.104 -t modelo/cmd -m "reset"
+
+# Rehacer tara de la celda de carga
+mosquitto_pub -h 192.168.1.104 -t tanque/cmd -m "tara"
+```
+
 
 ## Servicios systemd
 
