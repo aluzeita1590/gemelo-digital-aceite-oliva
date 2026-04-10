@@ -10,7 +10,7 @@ MQTT_PORT    = 1883
 MQTT_TOPIC   = "tanque/datos"
 
 INFLUX_URL   = "http://localhost:8086"
-INFLUX_TOKEN = "bADhNEbsaMqzlkCSOtoDPvuM5gxj8NR3pDmNxAWBHH4G9uey_qr-CUPn6f42E5jBmpeX5N2Mg1EmJNeNCths4g=="
+INFLUX_TOKEN = "3MycBr7zwAzy_L-xUsiarFMKELOqhrGqqcwJf_14YF4NmTSNePnOw5uMcwCXZQwmp3DS1JmhHeN-cEIa9TldNw=="
 INFLUX_ORG   = "uach"
 INFLUX_BUCKET= "gemelo"
 

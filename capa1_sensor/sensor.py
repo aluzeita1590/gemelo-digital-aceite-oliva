@@ -10,7 +10,7 @@ from luma.oled.device import ssd1306
 from luma.core.render import canvas
 
 # ── Configuración ─────────────────────────────────────
-MQTT_BROKER  = "192.168.1.105"
+MQTT_BROKER  = "192.168.1.104"
 MQTT_PORT    = 1883
 MQTT_TOPIC   = "tanque/datos"
 INTERVALO_S  = 10
