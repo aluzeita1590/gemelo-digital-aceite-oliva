@@ -157,6 +157,8 @@ Acceso al heatmap del modelo: `http://192.168.1.104:5000/heatmap`
 mosquitto_pub -h 192.168.1.104 -t modelo/cmd -m "fluido/agua"
 mosquitto_pub -h 192.168.1.104 -t modelo/cmd -m "fluido/aceite"
 
+Todos los servicios arrancan automáticamente al encender:
+
 # Reiniciar condición inicial del modelo
 mosquitto_pub -h 192.168.1.104 -t modelo/cmd -m "reset"
 
@@ -165,17 +167,6 @@ mosquitto_pub -h 192.168.1.104 -t tanque/cmd -m "tara"
 ```
 
 
-## Servicios systemd
-
-Todos los servicios arrancan automáticamente al encender:
-
-```bash
-# En gemelo
-sudo systemctl status mosquitto suscriptor modelo grafana-server
-
-# En sensor
-sudo systemctl status sensor
-```
 
 ## Comando tara (remoto)
 
