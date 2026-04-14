@@ -1,0 +1,70 @@
+version: '3.8'
+
+services:
+
+  # ── Broker MQTT ────────────────────────────────────────
+  mosquitto:
+    image: eclipse-mosquitto:2.0
+    container_name: mosquitto
+    restart: unless-stopped
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./mosquitto/config:/mosquitto/config
+      - ./mosquitto/data:/mosquitto/data
+      - ./mosquitto/log:/mosquitto/log
+
+  # ── Base de datos de series temporales ────────────────
+  influxdb:
+    image: influxdb:2.7
+    container_name: influxdb
+    restart: unless-stopped
+    ports:
+      - "8086:8086"
+    volumes:
+      - influxdb_data:/var/lib/influxdb2
+    environment:
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_USERNAME=sebar
+      - DOCKER_INFLUXDB_INIT_PASSWORD=digitaltwin
+      - DOCKER_INFLUXDB_INIT_ORG=uach
+      - DOCKER_INFLUXDB_INIT_BUCKET=gemelo
+      - DOCKER_INFLUXDB_INIT_RETENTION=0
+
+  # ── Dashboard ─────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=digitaltwin
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
+      - GF_SECURITY_ALLOW_EMBEDDING=true
+    depends_on:
+      - influxdb
+
+  # ── Modelo 2D + servidor Flask ─────────────────────────
+  modelo:
+    build:
+      context: ./modelo
+      dockerfile: Dockerfile
+    container_name: modelo
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      - INFLUX_URL=http://influxdb:8086
+      - MQTT_BROKER=mosquitto
+    depends_on:
+      - influxdb
+      - mosquitto
+
+volumes:
+  influxdb_data:
+  grafana_data:

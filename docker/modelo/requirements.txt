@@ -1,0 +1,5 @@
+numpy
+matplotlib
+flask
+influxdb-client
+paho-mqtt
