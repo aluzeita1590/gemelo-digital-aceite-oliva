@@ -163,13 +163,6 @@ mosquitto_pub -h 192.168.1.104 -t tanque/cmd -m "tara"
 ```
 
 
-
-## Comando tara (remoto)
-
-```bash
-mosquitto_pub -h 192.168.1.105 -t tanque/cmd -m "tara"
-```
-
 ---
 
 ## Despliegue con Docker
