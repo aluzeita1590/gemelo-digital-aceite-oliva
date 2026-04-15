@@ -62,8 +62,6 @@ nivel y masa del aceite, visualizando los resultados en un dashboard Grafana.
 - `capa3_modelo/modelo.py` — Modelo 2D en tiempo real
 - `capa3_modelo/tanque_modelo_2D_v2.py` — Modelo standalone v2.1
 - `capa3_modelo/tanque_modelo_2D_v3.py` — Modelo standalone v3.0
-- `docs/propuesta_tesis_v5.docx` — Propuesta formal v5
-- `docs/plan_trabajo_v3.docx` — Plan de trabajo v3
 
 ---
 
