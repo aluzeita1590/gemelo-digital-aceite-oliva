@@ -176,6 +176,48 @@ mosquitto_pub -h 192.168.1.105 -t tanque/cmd -m "tara"
 
 ---
 
+## Despliegue con Docker
+
+Para migrar el sistema al servidor del laboratorio o a cualquier máquina Linux con Docker instalado.
+
+### Requisitos
+- Docker y Docker Compose instalados
+- Puerto 1883 (MQTT), 8086 (InfluxDB), 3000 (Grafana) y 5000 (Modelo) disponibles
+
+### Estructura
+
+- `docker/docker-compose.yml` — orquestación de los 4 servicios
+- `docker/modelo/` — imagen personalizada del modelo 2D Python
+- `docker/mosquitto/config/` — configuración del broker MQTT
+
+### Arrancar el stack
+
+```bash
+cd docker
+docker-compose up -d
+```
+
+### Detener el stack
+
+```bash
+docker-compose down
+```
+
+### Variables de entorno del modelo
+
+El modelo lee la configuración desde variables de entorno definidas en `docker-compose.yml`:
+
+| Variable | Valor en Docker | Valor local |
+|---|---|---|
+| `INFLUX_URL` | `http://influxdb:8086` | `http://localhost:8086` |
+| `MQTT_BROKER` | `mosquitto` | `localhost` |
+
+### Notas
+- InfluxDB se inicializa automáticamente con org=`uach`, bucket=`gemelo`
+- El token de InfluxDB se genera al arrancar — obtenerlo con `docker exec influxdb influx auth list`
+- Grafana arranca con acceso anónimo habilitado
+- La Raspberry `sensor` debe apuntar a la IP del servidor donde corre Docker
+
 ## Referencias
 
 - Ribeiro et al. (2017). Eur. J. Lipid Sci. Technol., 119(5)
