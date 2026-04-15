@@ -119,8 +119,6 @@ El número de Rayleigh del prototipo (Ra ≈ 1.4×10⁶) indica que la convecci�
 Acceso a Grafana: `http://192.168.1.104:3000`  
 Acceso al heatmap del modelo: `http://192.168.1.104:5000/heatmap`
 
-> **Nota:** El servidor provisional es una Raspberry Pi Zero 2 W. 
-> La migración al servidor del laboratorio UACh está planificada como paso siguiente.
 
 ---
 
