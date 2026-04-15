@@ -109,7 +109,7 @@ El número de Rayleigh del prototipo (Ra ≈ 1.4×10⁶) indica que la convecci�
 
 ---
 
-## Configuración de red (laboratorio UACh)
+## Configuración de red (laboratorio IIoT)
 
 | Dispositivo | IP | Red |
 |---|---|---|
