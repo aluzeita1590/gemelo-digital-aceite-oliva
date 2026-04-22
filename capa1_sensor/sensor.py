@@ -28,7 +28,9 @@ SENSOR_IDS = [
     "01215ceeecc6",  # DS3 — 22.5 cm
     "01215cb4d462",  # DS4 — 30.0 cm
 ]
-Z_SENSORES = [0.0, 0.075, 0.15, 0.225, 0.30]  # alturas en metros
+SENSOR_AMB1_ID = "2ce8f30a6461"   # DS_AMB1 — temperatura ambiente
+SENSOR_AMB2_ID = "b5d9f30a6461"   # DS_AMB2 — temperatura ambiente
+SENSOR_SUP_ID  = "01215cd8d6d3"   # DS_SUP  — temperatura tanque superior
 
 # ── Calibración HX711 ─────────────────────────────────
 HX711_FACTOR = 23850   # unidades por kg
@@ -128,6 +130,26 @@ def leer_temperaturas():
             temps.append(None)
     return temps
 
+def leer_temperatura_ambiente():
+    """Promedio de los dos sensores de ambiente."""
+    vals = []
+    for s in sensores:
+        if s.id in [SENSOR_AMB1_ID, SENSOR_AMB2_ID]:
+            try:
+                vals.append(s.get_temperature())
+            except:
+                pass
+    return round(sum(vals)/len(vals), 3) if vals else None
+
+def leer_temperatura_superior():
+    """Temperatura del fluido en el tanque superior."""
+    for s in sensores:
+        if s.id == SENSOR_SUP_ID:
+            try:
+                return round(s.get_temperature(), 3)
+            except:
+                return None
+    return None
 
 def leer_nivel():
     lecturas = []
@@ -194,13 +216,17 @@ try:
             actualizar_display(temps, nivel, masa)
             ultimo = actual.copy()
 
+        t_amb = leer_temperatura_ambiente()
+        t_sup = leer_temperatura_superior()
         payload = {
             "ts":         ciclo,
             "ciclo":      ciclo,
             "temp":       temps,
             "nivel_m":    nivel,
             "masa_kg":    masa,
-            "n_sensores": len(sensores)
+            "n_sensores": len(sensores),
+            "t_amb":      t_amb,
+            "t_sup":      t_sup
         }
         mqtt_client.publish(MQTT_TOPIC, json.dumps(payload))
         print(f"Ciclo {ciclo} | T={temps} | nivel={nivel}m | masa={masa}kg")

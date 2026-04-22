@@ -17,6 +17,7 @@ from influxdb_client import InfluxDBClient, Point
 from influxdb_client.client.write_api import SYNCHRONOUS
 from datetime import datetime, timezone
 import paho.mqtt.client as mqtt_lib
+from scipy.interpolate import interp1d
 
 # ── Configuración InfluxDB ─────────────────────────────
 INFLUX_URL    = "http://localhost:8086"
@@ -122,8 +123,16 @@ def on_modelo_message(client, userdata, msg):
         nombre = comando.split("/")[1]
         cargar_fluido(nombre)
     elif comando == "reset":
-        print("Reiniciando condición inicial...")
+        print("Reiniciando condición inicial con sensores de pared...")
         T = condicion_inicial_dinamica()
+    elif comando == "inicio/sup":
+        t_sup = leer_t_sup()
+        if t_sup is not None:
+            print(f"Iniciando con T_sup={t_sup:.2f}°C (tanque superior)")
+            T = np.ones((Nr, Nz)) * t_sup
+        else:
+            print("DS_SUP no disponible — usando sensores de pared")
+            T = condicion_inicial_dinamica()
 
 modelo_mqtt = mqtt_lib.Client(mqtt_lib.CallbackAPIVersion.VERSION2)
 modelo_mqtt.on_message = on_modelo_message
@@ -163,15 +172,52 @@ def leer_temperaturas_pared():
 
     return temps if len(temps) >= 2 else None
 
+def leer_t_amb():
+    """Lee la temperatura ambiente desde InfluxDB (sensor DS_AMB)."""
+    flux = f'''
+    from(bucket: "{INFLUX_BUCKET}")
+      |> range(start: -2m)
+      |> filter(fn: (r) => r._measurement == "temperatura")
+      |> filter(fn: (r) => r.sensor == "DS_AMB")
+      |> filter(fn: (r) => r._field == "valor")
+      |> last()
+    '''
+    result = query_api.query(flux)
+    for table in result:
+        for record in table.records:
+            return float(record.get_value())
+    return None
+
+def leer_t_sup():
+    """Lee la temperatura del tanque superior desde InfluxDB (DS_SUP)."""
+    flux = f'''
+    from(bucket: "{INFLUX_BUCKET}")
+      |> range(start: -2m)
+      |> filter(fn: (r) => r._measurement == "temperatura")
+      |> filter(fn: (r) => r.sensor == "DS_SUP")
+      |> filter(fn: (r) => r._field == "valor")
+      |> last()
+    '''
+    result = query_api.query(flux)
+    for table in result:
+        for record in table.records:
+            return float(record.get_value())
+    return None
+
 def condicion_inicial_dinamica():
-    """Lee sensores y construye T inicial con gradiente axial real."""
+    """Lee sensores y construye T inicial con interpolación + extrapolación."""
     temps = leer_temperaturas_pared()
     if not temps or len(temps) < 2:
         print(f"Sin sensores — usando T_amb={T_amb}°C como condición inicial")
         return np.ones((Nr, Nz)) * T_amb
+    interp = interp1d(Z_SENSORES_M, temps,
+                      kind='linear',
+                      fill_value='extrapolate',
+                      bounds_error=False)
     T_init = np.zeros((Nr, Nz))
     for j in range(Nz):
-        T_z = np.interp(z[j], Z_SENSORES_M, temps)
+        T_z = float(interp(z[j]))
+        T_z = np.clip(T_z, min(temps) - 1.0, max(temps) + 1.0)
         T_init[:, j] = T_z
     T_prom = np.mean(temps)
     print(f"Condición inicial dinámica: T_prom={T_prom:.2f}°C")
@@ -181,10 +227,14 @@ def condicion_inicial_dinamica():
 def actualizar_con_sensores(T, temps):
     if not temps:
         return T
-    for i, t_s in enumerate(temps):
-        j = int(round(Z_SENSORES_M[i] / dz))
-        j = min(j, Nz - 1)
-        T[-1, j] = T[-1, j] + alpha_K * (t_s - T[-1, j])
+    interp = interp1d(Z_SENSORES_M, temps,
+                      kind='linear',
+                      fill_value='extrapolate',
+                      bounds_error=False)
+    for j in range(Nz):
+        T_interp = float(interp(z[j]))
+        T_interp = np.clip(T_interp, min(temps) - 1.0, max(temps) + 1.0)
+        T[-1, j] = T[-1, j] + alpha_K * (T_interp - T[-1, j])
     return T
 
 def paso_tiempo(T):
@@ -256,6 +306,7 @@ print("Leyendo sensores para condición inicial...")
 time.sleep(5)
 T = condicion_inicial_dinamica()
 
+
 # ── Loop principal ─────────────────────────────────────
 print(f"Modelo 2D iniciado. Fluido: {FLUIDO_ACTIVO}. Actualizando cada {INTERVALO_S}s\n")
 ciclo = 0
@@ -264,6 +315,11 @@ try:
     while True:
         ciclo += 1
         temps = leer_temperaturas_pared()
+
+        # Actualizar T_amb dinámico si hay sensor de ambiente
+        t_amb_nuevo = leer_t_amb()
+        if t_amb_nuevo is not None:
+            T_amb = t_amb_nuevo
 
         pasos = max(1, int(INTERVALO_S / dt))
         for _ in range(pasos):
