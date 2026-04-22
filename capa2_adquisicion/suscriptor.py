@@ -52,6 +52,24 @@ def on_message(client, userdata, msg):
                      .time(ts))
                 write.write(bucket=INFLUX_BUCKET, record=p)
 
+        # Escribir temperatura ambiente
+        t_amb = datos.get("t_amb")
+        if t_amb is not None:
+            p = (Point("temperatura")
+                .tag("sensor", "DS_AMB")
+                .field("valor", float(t_amb))
+                .time(ts))
+            write.write(bucket=INFLUX_BUCKET, record=p)
+
+        # Escribir temperatura tanque superior
+        t_sup = datos.get("t_sup")
+        if t_sup is not None:
+            p = (Point("temperatura")
+                .tag("sensor", "DS_SUP")
+                .field("valor", float(t_sup))
+                .time(ts))
+            write.write(bucket=INFLUX_BUCKET, record=p) 
+
         # Escribir nivel y masa
         if datos.get("nivel_m", -1) >= 0:
             p = (Point("nivel")
