@@ -148,19 +148,31 @@ Acceso al heatmap del modelo: `http://192.168.1.104:5000/heatmap`
 
 ## Comandos MQTT disponibles
 
+### Control del sensor (topic: `tanque/cmd`)
 ```bash
-# Cambiar fluido del modelo
-mosquitto_pub -h 192.168.1.104 -t modelo/cmd -m "fluido/agua"
-mosquitto_pub -h 192.168.1.104 -t modelo/cmd -m "fluido/aceite"
-
-Todos los servicios arrancan automáticamente al encender:
-
-# Reiniciar condición inicial del modelo
-mosquitto_pub -h 192.168.1.104 -t modelo/cmd -m "reset"
-
-# Rehacer tara de la celda de carga
+# Rehacer tara de la celda de carga (tanque vacío)
 mosquitto_pub -h 192.168.1.104 -t tanque/cmd -m "tara"
 ```
+
+### Control del modelo (topic: `modelo/cmd`)
+```bash
+# Reiniciar condición inicial con temperatura del tanque superior
+# Usar justo antes de abrir la válvula de llenado
+mosquitto_pub -h 192.168.1.104 -t modelo/cmd -m "inicio/sup"
+
+# Reiniciar condición inicial con interpolación de sensores de pared
+mosquitto_pub -h 192.168.1.104 -t modelo/cmd -m "reset"
+
+# Cambiar propiedades físicas del fluido
+mosquitto_pub -h 192.168.1.104 -t modelo/cmd -m "fluido/agua"
+mosquitto_pub -h 192.168.1.104 -t modelo/cmd -m "fluido/aceite"
+```
+
+### Flujo de trabajo para experimento de llenado
+1. Tanque de pruebas vacío — enviar `inicio/sup` para establecer T_sup como condición inicial
+2. Abrir válvula — el fluido entra desde el tanque superior
+3. El modelo evoluciona desde T_sup hacia el gradiente real
+4. Los sensores de pared corrigen el modelo ciclo a ciclo mediante asimilación de datos
 
 
 ---
