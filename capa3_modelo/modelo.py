@@ -123,8 +123,16 @@ def on_modelo_message(client, userdata, msg):
         nombre = comando.split("/")[1]
         cargar_fluido(nombre)
     elif comando == "reset":
-        print("Reiniciando condición inicial...")
+        print("Reiniciando condición inicial con sensores de pared...")
         T = condicion_inicial_dinamica()
+    elif comando == "inicio/sup":
+        t_sup = leer_t_sup()
+        if t_sup is not None:
+            print(f"Iniciando con T_sup={t_sup:.2f}°C (tanque superior)")
+            T = np.ones((Nr, Nz)) * t_sup
+        else:
+            print("DS_SUP no disponible — usando sensores de pared")
+            T = condicion_inicial_dinamica()
 
 modelo_mqtt = mqtt_lib.Client(mqtt_lib.CallbackAPIVersion.VERSION2)
 modelo_mqtt.on_message = on_modelo_message
@@ -195,15 +203,6 @@ def leer_t_sup():
         for record in table.records:
             return float(record.get_value())
     return None
-
-def detectar_llenado(nivel_actual, nivel_anterior, umbral=0.05):
-    """
-    Detecta si hay llenado activo comparando nivel actual vs anterior.
-    umbral: incremento mínimo de nivel en metros para considerar llenado (5 cm).
-    """
-    if nivel_actual is None or nivel_anterior is None:
-        return False
-    return (nivel_actual - nivel_anterior) > umbral
 
 def condicion_inicial_dinamica():
     """Lee sensores y construye T inicial con interpolación + extrapolación."""
@@ -307,7 +306,6 @@ print("Leyendo sensores para condición inicial...")
 time.sleep(5)
 T = condicion_inicial_dinamica()
 
-nivel_anterior = None
 
 # ── Loop principal ─────────────────────────────────────
 print(f"Modelo 2D iniciado. Fluido: {FLUIDO_ACTIVO}. Actualizando cada {INTERVALO_S}s\n")
@@ -322,26 +320,6 @@ try:
         t_amb_nuevo = leer_t_amb()
         if t_amb_nuevo is not None:
             T_amb = t_amb_nuevo
-
-        # Detectar llenado y actualizar condición inicial con T_sup
-        nivel_actual_query = query_api.query(f'''
-            from(bucket: "{INFLUX_BUCKET}")
-            |> range(start: -1m)
-            |> filter(fn: (r) => r._measurement == "nivel")
-            |> filter(fn: (r) => r._field == "valor")
-            |> last()
-        ''')
-        nivel_actual = None
-        for table in nivel_actual_query:
-            for record in table.records:
-                nivel_actual = float(record.get_value())
-
-        if detectar_llenado(nivel_actual, nivel_anterior):
-            t_sup = leer_t_sup()
-            if t_sup is not None:
-                print(f"Llenado detectado — reiniciando con T_sup={t_sup:.2f}°C")
-                T = np.ones((Nr, Nz)) * t_sup
-        nivel_anterior = nivel_actual
 
         pasos = max(1, int(INTERVALO_S / dt))
         for _ in range(pasos):
