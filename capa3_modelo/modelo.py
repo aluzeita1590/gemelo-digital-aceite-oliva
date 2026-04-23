@@ -5,6 +5,8 @@ y escribe las estimaciones T(r,z) de vuelta en InfluxDB.
 Versión con condición inicial dinámica y selección de fluido por MQTT.
 """
 
+import os
+import sys
 import time
 import numpy as np
 import matplotlib
@@ -19,16 +21,34 @@ from datetime import datetime, timezone
 import paho.mqtt.client as mqtt_lib
 from scipy.interpolate import interp1d
 
+# Busca config.py en el mismo directorio (Docker) o en el padre (repo)
+_script_dir = os.path.dirname(os.path.abspath(__file__))
+_parent_dir = os.path.dirname(_script_dir)
+_config_dir = _script_dir if os.path.exists(os.path.join(_script_dir, 'config.py')) else _parent_dir
+sys.path.insert(0, _config_dir)
+import config
+
+try:
+    from dotenv import load_dotenv
+    load_dotenv(os.path.join(_config_dir, '.env'))
+except ImportError:
+    pass
+
+INFLUX_TOKEN = os.environ.get("INFLUX_TOKEN", "")
+if not INFLUX_TOKEN:
+    raise RuntimeError("INFLUX_TOKEN no definido. Crea un archivo .env con INFLUX_TOKEN=<token>")
+
 # ── Configuración InfluxDB ─────────────────────────────
-INFLUX_URL    = "http://localhost:8086"
-INFLUX_TOKEN  = "3MycBr7zwAzy_L-xUsiarFMKELOqhrGqqcwJf_14YF4NmTSNePnOw5uMcwCXZQwmp3DS1JmhHeN-cEIa9TldNw=="
-INFLUX_ORG    = "uach"
-INFLUX_BUCKET = "gemelo"
-INTERVALO_S   = 10
+# INFLUX_URL puede ser sobreescrita por variable de entorno (Docker)
+INFLUX_URL    = os.environ.get("INFLUX_URL", config.INFLUX_URL)
+INFLUX_ORG    = config.INFLUX_ORG
+INFLUX_BUCKET = config.INFLUX_BUCKET
+INTERVALO_S   = config.INTERVALO_MODELO_S
 
 # ── Configuración MQTT ─────────────────────────────────
-MQTT_BROKER = "localhost"
-MQTT_PORT   = 1883
+# MQTT_BROKER puede ser sobreescrito por variable de entorno (Docker)
+MQTT_BROKER = os.environ.get("MQTT_BROKER", config.MQTT_BROKER_GEMELO)
+MQTT_PORT   = config.MQTT_PORT
 
 # ── Propiedades de los fluidos ─────────────────────────
 FLUIDOS = {
@@ -49,7 +69,7 @@ FLUIDOS = {
 }
 
 # Fluido activo
-FLUIDO_ACTIVO = "aceite"
+FLUIDO_ACTIVO = config.MODELO_FLUIDO_DEFAULT
 rho_0 = alpha = T_0 = Cp = k = None
 
 def cargar_fluido(nombre):
@@ -72,19 +92,19 @@ def cargar_fluido(nombre):
     print(f"Fluido: {nombre} | ρ₀={rho_0} | Cp={Cp} | k={k} | dt={dt:.1f}s")
 
 # ── Geometría del tanque prototipo 20L ─────────────────
-R  = 0.141    # radio [m]
-H  = 0.366    # altura [m]
-Nr = 15       # nodos radiales
-Nz = 20       # nodos axiales
+R  = config.TANQUE_R_M
+H  = config.TANQUE_H_M
+Nr = config.MODELO_NR
+Nz = config.MODELO_NZ
 dr = R / (Nr - 1)
 dz = H / (Nz - 1)
 r  = np.linspace(0, R, Nr)
 z  = np.linspace(0, H, Nz)
 
 # ── Parámetros del modelo ──────────────────────────────
-h_ext   = 5.0    # coef. convección exterior [W/(m²·°C)]
-alpha_K = 0.6    # ganancia asimilación de datos
-T_amb   = 25.0   # temperatura ambiente [°C]
+h_ext   = config.MODELO_H_EXT
+alpha_K = config.MODELO_ALPHA_K
+T_amb   = 25.0   # temperatura ambiente [°C] — se actualiza dinámicamente
 
 # dt se define dentro de cargar_fluido
 dt = 30.0
@@ -137,7 +157,7 @@ def on_modelo_message(client, userdata, msg):
 modelo_mqtt = mqtt_lib.Client(mqtt_lib.CallbackAPIVersion.VERSION2)
 modelo_mqtt.on_message = on_modelo_message
 modelo_mqtt.connect(MQTT_BROKER, MQTT_PORT)
-modelo_mqtt.subscribe("modelo/cmd")
+modelo_mqtt.subscribe(config.MQTT_TOPIC_CMD_MODELO)
 modelo_mqtt.loop_start()
 print("Escuchando comandos en topic 'modelo/cmd'")
 
@@ -301,10 +321,19 @@ def generar_imagen(T):
     buf.seek(0)
     imagen_actual = buf.read()
 
-# ── Condición inicial dinámica ─────────────────────────
+# ── Condición inicial ──────────────────────────────────
 print("Leyendo sensores para condición inicial...")
 time.sleep(5)
-T = condicion_inicial_dinamica()
+if config.MODELO_IC_DEFAULT == "t_sup":
+    t_sup_init = leer_t_sup()
+    if t_sup_init is not None:
+        print(f"Condición inicial: T_sup={t_sup_init:.2f}°C (tanque superior)")
+        T = np.ones((Nr, Nz)) * t_sup_init
+    else:
+        print("DS_SUP no disponible — usando interpolación desde sensores de pared")
+        T = condicion_inicial_dinamica()
+else:
+    T = condicion_inicial_dinamica()
 
 
 # ── Loop principal ─────────────────────────────────────

@@ -1,4 +1,5 @@
 import os
+import sys
 import time
 import json
 import paho.mqtt.client as mqtt
@@ -9,31 +10,28 @@ from luma.core.interface.serial import i2c
 from luma.oled.device import ssd1306
 from luma.core.render import canvas
 
-# ── Configuración ─────────────────────────────────────
-MQTT_BROKER  = "192.168.1.104"
-MQTT_PORT    = 1883
-MQTT_TOPIC   = "tanque/datos"
-INTERVALO_S  = 10
+# config.py debe estar en el mismo directorio que sensor.py en la RPi Zero
+import config
+
+# ── Configuración (desde config.py) ───────────────────
+MQTT_BROKER  = config.MQTT_BROKER_SENSOR
+MQTT_PORT    = config.MQTT_PORT
+MQTT_TOPIC   = config.MQTT_TOPIC_DATOS
+INTERVALO_S  = config.INTERVALO_SENSOR_S
 
 # ── Pines GPIO (BCM) ──────────────────────────────────
-PIN_TRIG     = 24   # pin físico 18
-PIN_ECHO     = 25   # pin físico 22
-ALTURA_CM    = 36.6
+PIN_TRIG     = config.PIN_TRIG
+PIN_ECHO     = config.PIN_ECHO
+ALTURA_CM    = config.ALTURA_CM
 
-# ── Orden físico de sensores (DS0=base, DS4=tope) ─────
-SENSOR_IDS = [
-    "01215cc6aad0",  # DS0 — 0.0 cm
-    "01215cbf83da",  # DS1 — 7.5 cm
-    "01215caa0b06",  # DS2 — 15.0 cm
-    "01215ceeecc6",  # DS3 — 22.5 cm
-    "01215cb4d462",  # DS4 — 30.0 cm
-]
-SENSOR_AMB1_ID = "2ce8f30a6461"   # DS_AMB1 — temperatura ambiente
-SENSOR_AMB2_ID = "b5d9f30a6461"   # DS_AMB2 — temperatura ambiente
-SENSOR_SUP_ID  = "01215cd8d6d3"   # DS_SUP  — temperatura tanque superior
+# ── Sensores ──────────────────────────────────────────
+SENSOR_IDS     = config.DS_PARED_IDS
+SENSOR_AMB1_ID = config.DS_AMB1_ID
+SENSOR_AMB2_ID = config.DS_AMB2_ID
+SENSOR_SUP_ID  = config.DS_SUP_ID
 
 # ── Calibración HX711 ─────────────────────────────────
-HX711_FACTOR = 23850   # unidades por kg
+HX711_FACTOR = config.HX711_FACTOR
 
 # ── Display OLED ──────────────────────────────────────
 try:
@@ -58,7 +56,7 @@ hx.reset()
 time.sleep(0.5)
 
 # ── Tara ──────────────────────────────────────────────
-TARA_FILE = "/home/sebar/sensor/tara.txt"
+TARA_FILE = config.TARA_FILE
 
 def medir_tara():
     print("Midiendo tara...")

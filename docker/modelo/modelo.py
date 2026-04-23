@@ -5,6 +5,9 @@ y escribe las estimaciones T(r,z) de vuelta en InfluxDB.
 Versión con condición inicial dinámica y selección de fluido por MQTT.
 """
 
+# ARCHIVO OBSOLETO — El Dockerfile ahora usa capa3_modelo/modelo.py directamente.
+# Este archivo se conserva solo como referencia histórica.
+
 import time
 import numpy as np
 import matplotlib
@@ -21,13 +24,13 @@ import os
 
 # ── Configuración InfluxDB ─────────────────────────────
 INFLUX_URL    = os.getenv("INFLUX_URL", "http://localhost:8086")
-INFLUX_TOKEN  = "3MycBr7zwAzy_L-xUsiarFMKELOqhrGqqcwJf_14YF4NmTSNePnOw5uMcwCXZQwmp3DS1JmhHeN-cEIa9TldNw=="
+INFLUX_TOKEN  = os.environ.get("INFLUX_TOKEN", "")
 INFLUX_ORG    = "uach"
 INFLUX_BUCKET = "gemelo"
 INTERVALO_S   = 10
 
 # ── Configuración MQTT ─────────────────────────────────
-MQTT_BROKER = os.getenv("INFLUX_BROKER", "localhost")
+MQTT_BROKER = os.getenv("MQTT_BROKER", "localhost")
 MQTT_PORT   = 1883
 
 # ── Propiedades de los fluidos ─────────────────────────

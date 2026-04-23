@@ -52,12 +52,14 @@ services:
   # ── Modelo 2D + servidor Flask ─────────────────────────
   modelo:
     build:
-      context: ./modelo
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: docker/modelo/Dockerfile
     container_name: modelo
     restart: unless-stopped
     ports:
       - "5000:5000"
+    env_file:
+      - ../.env
     environment:
       - INFLUX_URL=http://influxdb:8086
       - MQTT_BROKER=mosquitto

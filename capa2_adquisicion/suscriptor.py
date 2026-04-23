@@ -1,18 +1,36 @@
+import os
+import sys
 import json
 import paho.mqtt.client as mqtt
 from influxdb_client import InfluxDBClient, Point
 from influxdb_client.client.write_api import SYNCHRONOUS
 from datetime import datetime, timezone
 
-# ── Configuración ─────────────────────────────────────
-MQTT_BROKER  = "localhost"
-MQTT_PORT    = 1883
-MQTT_TOPIC   = "tanque/datos"
+# Busca config.py en el mismo directorio o en el padre (repo)
+_script_dir = os.path.dirname(os.path.abspath(__file__))
+_parent_dir = os.path.dirname(_script_dir)
+_config_dir = _script_dir if os.path.exists(os.path.join(_script_dir, 'config.py')) else _parent_dir
+sys.path.insert(0, _config_dir)
+import config
 
-INFLUX_URL   = "http://localhost:8086"
-INFLUX_TOKEN = "3MycBr7zwAzy_L-xUsiarFMKELOqhrGqqcwJf_14YF4NmTSNePnOw5uMcwCXZQwmp3DS1JmhHeN-cEIa9TldNw=="
-INFLUX_ORG   = "uach"
-INFLUX_BUCKET= "gemelo"
+try:
+    from dotenv import load_dotenv
+    load_dotenv(os.path.join(_config_dir, '.env'))
+except ImportError:
+    pass
+
+INFLUX_TOKEN = os.environ.get("INFLUX_TOKEN", "")
+if not INFLUX_TOKEN:
+    raise RuntimeError("INFLUX_TOKEN no definido. Crea un archivo .env con INFLUX_TOKEN=<token>")
+
+# ── Configuración ─────────────────────────────────────
+MQTT_BROKER  = config.MQTT_BROKER_GEMELO
+MQTT_PORT    = config.MQTT_PORT
+MQTT_TOPIC   = config.MQTT_TOPIC_DATOS
+
+INFLUX_URL    = config.INFLUX_URL
+INFLUX_ORG    = config.INFLUX_ORG
+INFLUX_BUCKET = config.INFLUX_BUCKET
 
 # ── Cliente InfluxDB ──────────────────────────────────
 influx  = InfluxDBClient(url=INFLUX_URL, token=INFLUX_TOKEN, org=INFLUX_ORG)

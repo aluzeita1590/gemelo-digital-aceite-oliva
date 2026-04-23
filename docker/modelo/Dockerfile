@@ -9,11 +9,12 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Instalar dependencias Python
-COPY requirements.txt .
+COPY docker/modelo/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copiar el modelo
-COPY modelo.py .
+# Copiar el modelo y la configuración central
+COPY capa3_modelo/modelo.py .
+COPY config.py .
 
 # Puerto Flask
 EXPOSE 5000
