@@ -8,35 +8,42 @@ Autor: Sebastián Araneda
 
 ## Descripción
 
-Sistema de gemelo digital para un tanque prototipo de 20 L de aceite de oliva, 
-organizado en una arquitectura de 4 capas escalable a los tanques industriales 
+Sistema de gemelo digital para un tanque prototipo de 20 L de aceite de oliva,
+organizado en una arquitectura de 4 capas escalable a los tanques industriales
 de 30.000 L de Las 200.
 
-El sistema estima en tiempo real la distribución espacial de temperatura T(r,z,t), 
-nivel y masa del aceite, visualizando los resultados en un dashboard Grafana.
+El sistema estima en tiempo real la distribución espacial de temperatura T(r,z,t),
+nivel y masa del aceite, a partir de las temperaturas medidas en la pared exterior
+del tanque. Los resultados se visualizan en un dashboard Grafana y un heatmap 2D
+generado por el modelo.
 
 ---
 
 ## Arquitectura del sistema
 
-**Capa 1 — Raspberry Pi `sensor`**
-- Sensores: DS18B20 ×5, HC-SR04, HX711, Display OLED
-- Publica datos por MQTT cada 10 segundos
+**Capa 1 — Raspberry Pi `sensor` (192.168.1.106)**
+- 5× DS18B20 en pared exterior (DS0–DS4), 2× DS18B20 ambiente (DS_AMB1, DS_AMB2), 1× DS18B20 tanque superior (DS_SUP)
+- HC-SR04 (nivel), HX711 + celda de carga (masa), Display OLED
+- Publica JSON por MQTT cada 10 segundos al broker en `gemelo5`
+- Corre como `sensor.service` (systemd)
 
-**Capa 2 — Raspberry Pi `gemelo` (servidor provisional)**
+**Capa 2 — Raspberry Pi `gemelo5` (192.168.1.104)**
 - Broker Mosquitto recibe los mensajes MQTT
-- Suscriptor Python valida y almacena en InfluxDB
+- Suscriptor Python valida rangos físicos y escribe en InfluxDB bucket `gemelo`
+- Corre como `suscriptor.service` (systemd)
 
-**Capa 3 — Raspberry Pi `gemelo`**
+**Capa 3 — Raspberry Pi `gemelo5`**
 - Modelo 2D axisimétrico T(r,z,t) en tiempo real
-- Lee sensores desde InfluxDB, estima temperatura interior
+- Lee temperaturas de pared desde InfluxDB, estima la distribución interior del fluido
+- Sirve heatmap PNG en puerto 5000 via Flask
+- Corre como `modelo.service` (systemd)
 
-**Capa 4 — Raspberry Pi `gemelo`**
+**Capa 4 — Raspberry Pi `gemelo5`**
 - Dashboard Grafana conectado a InfluxDB
-- Heatmap del modelo disponible en puerto 5000
+- Kiosco en monitor conectado a la Pi 5
 
-> La Raspberry Pi `gemelo` es el servidor provisional.
-> La migración al servidor del laboratorio UACh está planificada.
+> La Raspberry Pi `gemelo5` es el servidor provisional.
+> La migración al servidor del laboratorio UACh (con Docker) está planificada.
 
 ---
 
@@ -45,8 +52,10 @@ nivel y masa del aceite, visualizando los resultados en un dashboard Grafana.
 | Componente | Función | Capa |
 |---|---|---|
 | Raspberry Pi Zero 2 W (`sensor`) | Adquisición de datos | 1 |
-| Raspberry Pi 5 (`gemelo`) | Servidor provisional | 2, 3, 4 |
-| 5× DS18B20 | Temperatura pared exterior | 1 |
+| Raspberry Pi 5 (`gemelo5`) | Servidor provisional | 2, 3, 4 |
+| 5× DS18B20 (DS0–DS4) | Temperatura pared exterior (0–30 cm) | 1 |
+| 2× DS18B20 (DS_AMB1, DS_AMB2) | Temperatura ambiente (promediadas) | 1 |
+| 1× DS18B20 (DS_SUP) | Temperatura fluido tanque superior | 1 |
 | HC-SR04 | Nivel ultrasónico | 1 |
 | HX711 + celda de carga | Masa | 1 |
 | Display OLED 128×64 I2C | Visualización local | 1 |
@@ -55,78 +64,138 @@ nivel y masa del aceite, visualizando los resultados en un dashboard Grafana.
 
 ## Estructura del repositorio
 
+```
+gemelo-digital-aceite-oliva/
+├── config.py                          # Configuración central (único lugar para cambiar parámetros)
+├── .env                               # Token InfluxDB — NO se commitea (ver .env.example)
+├── .env.example                       # Plantilla del .env
+│
+├── capa1_sensor/
+│   └── sensor.py                      # Script en producción — RPi Zero 2W
+│
+├── capa2_adquisicion/
+│   ├── suscriptor.py                  # Script en producción — RPi 5
+│   └── telegraf.conf                  # Pipeline alternativo (Telegraf)
+│
+├── capa3_modelo/
+│   ├── modelo.py                      # Script en producción — RPi 5
+│   ├── tanque_modelo_2D_v2.py         # Referencia — modelo standalone v2.1
+│   └── tanque_modelo_2D_v3.py         # Referencia — modelo standalone v3.0
+│
+└── docker/
+    ├── docker-compose.yml             # Orquestación (preparado, pendiente de despliegue)
+    ├── modelo/
+    │   ├── Dockerfile                 # Imagen del modelo (usa capa3_modelo/modelo.py)
+    │   ├── requirements.txt
+    │   └── modelo.py                  # OBSOLETO — reemplazado por capa3_modelo/modelo.py
+    └── mosquitto/
+        └── config/mosquitto.conf
+```
 
-- `capa1_sensor/sensor.py` — Script principal Raspberry sensor
-- `capa1_sensor/tanque_esp32.ino` — Firmware ESP32 (referencia futura)
-- `capa2_adquisicion/suscriptor.py` — Broker MQTT + validación + InfluxDB
-- `capa3_modelo/modelo.py` — Modelo 2D en tiempo real
-- `capa3_modelo/tanque_modelo_2D_v2.py` — Modelo standalone v2.1
-- `capa3_modelo/tanque_modelo_2D_v3.py` — Modelo standalone v3.0
+---
+
+## Configuración centralizada
+
+Todos los parámetros del sistema están en **`config.py`** en la raíz del repositorio.
+No es necesario modificar los scripts para cambiar IPs, topics, IDs de sensores o parámetros del modelo.
+
+```python
+# Ejemplos de parámetros en config.py
+MQTT_BROKER_SENSOR = "192.168.1.104"   # IP del gemelo (usado por sensor)
+MODELO_IC_DEFAULT  = "t_sup"           # Condición inicial al arrancar: "t_sup" | "sensores"
+MODELO_ALPHA_K     = 0.6               # Ganancia asimilación de datos
+```
+
+### Secretos (.env)
+
+El token de InfluxDB **no va en el código**. Se define en un archivo `.env`:
+
+```bash
+# .env (no commitear)
+INFLUX_TOKEN=your_influxdb_token_here
+```
+
+Crear a partir de la plantilla:
+```bash
+cp .env.example .env
+# editar .env con el token real
+```
+
+En producción, systemd lo carga via `EnvironmentFile=/home/sebar/.env` en el override de cada servicio.
+En Docker, lo inyecta `env_file: ../.env` en el `docker-compose.yml`.
 
 ---
 
 ## Modelo termofísico (Capa 3)
 
-Resuelve la **ecuación de calor en coordenadas cilíndricas** para un fluido estático:
+El modelo resuelve la **ecuación de calor en coordenadas cilíndricas** para un fluido estático:
 
 ```
 ρ(T)·Cp·∂T/∂t = k·[1/r·∂/∂r(r·∂T/∂r) + ∂²T/∂z²]
 ```
 
-Integración temporal con **Euler explícito**. Densidad variable `ρ(T)` según Ribeiro et al. (2017).
+A partir de las temperaturas medidas en la pared (DS0–DS4), estima T(r,z) en el interior del fluido.
+En cada ciclo los nodos de pared se corrigen hacia las mediciones reales (asimilación de datos).
 
 ### Condiciones de contorno
 
 | Borde | Condición |
 |-------|-----------|
 | r = 0 | Simetría axial (L'Hôpital) |
-| r = R | Robin — convección exterior con los DS18B20 |
+| r = R | Robin + corrección por asimilación de datos (DS0–DS4) |
 | z = 0 | Fondo adiabático |
 | z = H | Superficie libre adiabática |
 
-### Versiones del modelo
+### Parámetros del modelo
 
-| Versión | Grilla | Laplaciano | Notas |
-|---------|--------|------------|-------|
-| v2.1 | Nr=3, Nz=7 | Loops Python | Versión inicial |
-| **v3.0** | **Nr=15, Nz=20** | **Vectorizado NumPy** | Versión activa — ~50× más rápido |
+| Parámetro | Valor | Descripción |
+|-----------|-------|-------------|
+| Nr × Nz | 15 × 20 | Nodos radiales × axiales |
+| dt | ≤ 30 s | Paso temporal (Von Neumann estable) |
+| h_ext | 5.0 W/(m²·°C) | Convección exterior — pendiente calibración |
+| alpha_K | 0.6 | Ganancia asimilación de datos |
+| IC default | `t_sup` | Condición inicial al arrancar el servicio |
 
-### Limitación conocida
+### Propiedades del aceite (Ribeiro et al. 2017, Fasina y Colley 2008)
 
-El número de Rayleigh del prototipo (Ra ≈ 1.4×10⁶) indica que la convección natural es significativa. El modelo actual asume fluido estático (conducción pura), lo que constituye una limitación documentada. La incorporación de convección natural queda propuesta como trabajo futuro.
-
-**Propiedades del aceite (Ribeiro et al. 2017, Fasina y Colley 2008):**
-- ρ(T) = 912.66 − 0.0803·T [kg/m³]
+- ρ(T) = 912.66 − 0.0803·T [kg/m³] — densidad variable
 - Cp = 1970 J/(kg·°C)
 - k = 0.17 W/(m·°C)
 - Válido para T ∈ [10°C, 40°C]
 
-**Discretización:** diferencias finitas centradas + Euler explícito  
-**Grilla:** 15×20 nodos (Nr×Nz)  
-**Condiciones de contorno:** simetría axial en r=0 (L'Hôpital), Robin en r=R, adiabático en z=0 y z=H
+### Versiones de referencia (archivos standalone)
 
-**Limitación documentada:** conducción pura sin convección natural (Ra ≈ 5×10⁶)
+| Versión | Grilla | Laplaciano | Archivo |
+|---------|--------|------------|---------|
+| v2.1 | Nr=3, Nz=7 | Loops Python | `tanque_modelo_2D_v2.py` |
+| v3.0 | Nr=15, Nz=20 | Vectorizado NumPy (~50× más rápido) | `tanque_modelo_2D_v3.py` |
+
+### Limitación conocida
+
+Ra ≈ 1.4×10⁶ indica que la convección natural es significativa. El modelo asume fluido estático (conducción pura). Incorporar convección natural queda propuesto como trabajo futuro.
 
 ---
 
-## Configuración de red (laboratorio IIoT)
+## Configuración de red
 
 | Dispositivo | IP | Red |
 |---|---|---|
 | Raspberry `sensor` | 192.168.1.106 | wifi_control.iee |
 | Raspberry `gemelo5` | 192.168.1.104 | wifi_control.iee |
 
-Acceso a Grafana: `http://192.168.1.104:3000`  
-Acceso al heatmap del modelo: `http://192.168.1.104:5000/heatmap`
-
+| Servicio | URL |
+|----------|-----|
+| Grafana dashboard | http://192.168.1.104:3000 |
+| Heatmap modelo | http://192.168.1.104:5000/heatmap |
+| InfluxDB | http://192.168.1.104:8086 |
 
 ---
 
-## Pines físicos (Raspberry Pi Zero 2 W — sensor)
+## Pines físicos (Raspberry Pi Zero 2 W)
 
 | Sensor | Pin físico | GPIO BCM |
 |---|---|---|
-| DS18B20 DATA | 7 | GPIO 4 |
+| DS18B20 DATA (todos) | 7 | GPIO 4 |
 | HC-SR04 TRIG | 18 | GPIO 24 |
 | HC-SR04 ECHO | 22 | GPIO 25 |
 | HX711 DT | 21 | GPIO 9 |
@@ -136,60 +205,100 @@ Acceso al heatmap del modelo: `http://192.168.1.104:5000/heatmap`
 
 ---
 
+## Despliegue en producción (systemd)
+
+Los scripts corren como servicios systemd en sus respectivas RPis.
+
+### Rutas en producción
+
+| Script | Ruta en RPi |
+|--------|------------|
+| `sensor.py` | `/home/sebar/sensor/sensor.py` (RPi Zero) |
+| `config.py` | `/home/sebar/sensor/config.py` (RPi Zero) |
+| `suscriptor.py` | `/home/sebar/gemelo/suscriptor.py` (RPi 5) |
+| `modelo.py` | `/home/sebar/modelo/modelo.py` (RPi 5) |
+| `config.py` | `/home/sebar/config.py` (RPi 5 — padre común) |
+| `.env` | `/home/sebar/.env` (RPi 5 — no en git) |
+
+### Actualizar scripts en producción
+
+Desde Git Bash en Windows, después de hacer `git pull`:
+
+```bash
+# RPi 5
+scp config.py sebar@192.168.1.104:/home/sebar/config.py
+scp capa3_modelo/modelo.py sebar@192.168.1.104:/home/sebar/modelo/modelo.py
+scp capa2_adquisicion/suscriptor.py sebar@192.168.1.104:/home/sebar/gemelo/suscriptor.py
+
+# RPi Zero
+scp config.py sebar@192.168.1.106:/home/sebar/sensor/config.py
+scp capa1_sensor/sensor.py sebar@192.168.1.106:/home/sebar/sensor/sensor.py
+```
+
+Reiniciar servicios en RPi 5:
+```bash
+sudo systemctl restart modelo.service suscriptor.service
+```
+
+Reiniciar en RPi Zero:
+```bash
+sudo systemctl restart sensor.service
+```
+
+---
+
 ## Pipeline de datos
 
-**Opción A — Suscriptor Python** (con validación de rangos físicos)
-- Broker: Mosquitto en gemelo5
+**Opción A — Suscriptor Python** (activa, con validación de rangos físicos)
 - Escribe en bucket: `gemelo`
 
-**Opción B — Telegraf** (más robusto, sin validación)
+**Opción B — Telegraf** (alternativa, sin validación)
 - Configuración: `capa2_adquisicion/telegraf.conf`
 - Escribe en bucket: `gemelo_telegraf`
 
-## Comandos MQTT disponibles
+---
+
+## Comandos MQTT
 
 ### Control del sensor (topic: `tanque/cmd`)
+
 ```bash
 # Rehacer tara de la celda de carga (tanque vacío)
 mosquitto_pub -h 192.168.1.104 -t tanque/cmd -m "tara"
 ```
 
 ### Control del modelo (topic: `modelo/cmd`)
+
 ```bash
-# Reiniciar condición inicial con temperatura del tanque superior
-# Usar justo antes de abrir la válvula de llenado
+# Reiniciar con temperatura del tanque superior (condición inicial uniforme)
 mosquitto_pub -h 192.168.1.104 -t modelo/cmd -m "inicio/sup"
 
-# Reiniciar condición inicial con interpolación de sensores de pared
+# Reiniciar con interpolación desde sensores de pared
 mosquitto_pub -h 192.168.1.104 -t modelo/cmd -m "reset"
 
-# Cambiar propiedades físicas del fluido
+# Cambiar fluido simulado
 mosquitto_pub -h 192.168.1.104 -t modelo/cmd -m "fluido/agua"
 mosquitto_pub -h 192.168.1.104 -t modelo/cmd -m "fluido/aceite"
 ```
 
 ### Flujo de trabajo para experimento de llenado
-1. Tanque de pruebas vacío — enviar `inicio/sup` para establecer T_sup como condición inicial
+
+1. Tanque vacío — enviar `inicio/sup` para establecer T_sup como condición inicial
 2. Abrir válvula — el fluido entra desde el tanque superior
 3. El modelo evoluciona desde T_sup hacia el gradiente real
-4. Los sensores de pared corrigen el modelo ciclo a ciclo mediante asimilación de datos
-
+4. Los sensores de pared corrigen el modelo ciclo a ciclo
 
 ---
 
-## Despliegue con Docker
+## Despliegue con Docker (pendiente)
 
-Para migrar el sistema al servidor del laboratorio o a cualquier máquina Linux con Docker instalado.
+Para migrar al servidor del laboratorio.
 
 ### Requisitos
+
 - Docker y Docker Compose instalados
-- Puerto 1883 (MQTT), 8086 (InfluxDB), 3000 (Grafana) y 5000 (Modelo) disponibles
-
-### Estructura
-
-- `docker/docker-compose.yml` — orquestación de los 4 servicios
-- `docker/modelo/` — imagen personalizada del modelo 2D Python
-- `docker/mosquitto/config/` — configuración del broker MQTT
+- Crear `.env` con `INFLUX_TOKEN` antes de arrancar (ver `.env.example`)
+- Puertos disponibles: 1883, 8086, 3000, 5000
 
 ### Arrancar el stack
 
@@ -198,7 +307,7 @@ cd docker
 docker-compose up -d
 ```
 
-### Detener el stack
+### Detener
 
 ```bash
 docker-compose down
@@ -206,18 +315,20 @@ docker-compose down
 
 ### Variables de entorno del modelo
 
-El modelo lee la configuración desde variables de entorno definidas en `docker-compose.yml`:
-
 | Variable | Valor en Docker | Valor local |
 |---|---|---|
 | `INFLUX_URL` | `http://influxdb:8086` | `http://localhost:8086` |
 | `MQTT_BROKER` | `mosquitto` | `localhost` |
+| `INFLUX_TOKEN` | desde `.env` | desde `.env` |
 
 ### Notas
-- InfluxDB se inicializa automáticamente con org=`uach`, bucket=`gemelo`
-- El token de InfluxDB se genera al arrancar — obtenerlo con `docker exec influxdb influx auth list`
+
+- El Dockerfile usa `capa3_modelo/modelo.py` directamente — no hay modelo duplicado
+- InfluxDB se inicializa con org=`uach`, bucket=`gemelo`
 - Grafana arranca con acceso anónimo habilitado
-- La Raspberry `sensor` debe apuntar a la IP del servidor donde corre Docker
+- La RPi `sensor` apunta a la IP del servidor donde corre Docker (cambiar `MQTT_BROKER_SENSOR` en `config.py`)
+
+---
 
 ## Referencias
 
