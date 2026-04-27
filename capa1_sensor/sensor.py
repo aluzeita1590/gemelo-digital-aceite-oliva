@@ -2,6 +2,7 @@ import os
 import sys
 import time
 import json
+import threading
 import paho.mqtt.client as mqtt
 import RPi.GPIO as GPIO
 from w1thermsensor import W1ThermSensor
@@ -22,7 +23,9 @@ INTERVALO_S  = config.INTERVALO_SENSOR_S
 # ── Pines GPIO (BCM) ──────────────────────────────────
 PIN_TRIG     = config.PIN_TRIG
 PIN_ECHO     = config.PIN_ECHO
+PIN_BOMBA    = config.PIN_BOMBA
 ALTURA_CM    = config.ALTURA_CM
+DURACION_LLENADO_S = config.BOMBA_DURACION_LLENADO_MIN * 60
 
 # ── Sensores ──────────────────────────────────────────
 SENSOR_IDS     = config.DS_PARED_IDS
@@ -49,6 +52,8 @@ GPIO.setmode(GPIO.BCM)
 GPIO.setup(PIN_TRIG, GPIO.OUT)
 GPIO.setup(PIN_ECHO, GPIO.IN)
 GPIO.output(PIN_TRIG, False)
+GPIO.setup(PIN_BOMBA, GPIO.OUT)
+GPIO.output(PIN_BOMBA, GPIO.LOW)   # bomba apagada al iniciar
 
 # ── HX711 ─────────────────────────────────────────────
 hx = HX711(dout_pin=9, pd_sck_pin=11)
@@ -85,6 +90,39 @@ TARA = cargar_tara()
 # ── Sensores temperatura ──────────────────────────────
 sensores = W1ThermSensor.get_available_sensors()
 
+# ── Control de bomba ──────────────────────────────────
+bomba_activa   = False
+_timer_llenado = None
+
+def activar_bomba():
+    global bomba_activa
+    GPIO.output(PIN_BOMBA, GPIO.HIGH)
+    bomba_activa = True
+    print("Bomba: ENCENDIDA")
+
+def desactivar_bomba(notificar_modelo=False):
+    global bomba_activa, _timer_llenado
+    GPIO.output(PIN_BOMBA, GPIO.LOW)
+    bomba_activa = False
+    if _timer_llenado is not None:
+        _timer_llenado.cancel()
+        _timer_llenado = None
+    print("Bomba: APAGADA")
+    if notificar_modelo:
+        mqtt_client.publish(config.MQTT_TOPIC_CMD_MODELO, "inicio/sup")
+        print("Modelo: inicio/sup enviado (tanque superior lleno)")
+
+def iniciar_llenado():
+    global _timer_llenado
+    if _timer_llenado is not None:
+        _timer_llenado.cancel()
+    activar_bomba()
+    print(f"Bomba: llenado automático — {config.BOMBA_DURACION_LLENADO_MIN} min")
+    _timer_llenado = threading.Timer(DURACION_LLENADO_S,
+                                     lambda: desactivar_bomba(notificar_modelo=True))
+    _timer_llenado.daemon = True
+    _timer_llenado.start()
+
 # ── MQTT ──────────────────────────────────────────────
 mqtt_client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
 ciclo       = 0
@@ -104,6 +142,12 @@ def on_message(client, userdata, msg):
         print("Comando recibido: rehaciendo tara...")
         TARA = medir_tara()
         print("Tara actualizada.")
+    elif comando == "bomba/on":
+        activar_bomba()
+    elif comando == "bomba/off":
+        desactivar_bomba()
+    elif comando == "bomba/llenar":
+        iniciar_llenado()
 
 mqtt_client.on_connect = on_connect
 mqtt_client.on_message = on_message
@@ -190,13 +234,14 @@ def actualizar_display(temps, nivel, masa):
     t_prom    = round(sum(t_validas)/len(t_validas), 1) if t_validas else None
     nivel_cm  = round(nivel * 100, 1) if nivel >= 0 else None
     masa_str  = f"{masa:.2f} kg" if masa >= 0 else "--"
-    mqtt_str  = "MQTT: OK" if mqtt_ok else "MQTT: --"
+    estado_str = ("MQTT:OK" if mqtt_ok else "MQTT:--") + \
+                 ("  BOMBA:ON" if bomba_activa else "  BOMBA:--")
 
     with canvas(oled) as draw:
         draw.text((0,  0), f"T prom: {t_prom} C" if t_prom else "T prom: --", fill="white")
         draw.text((0, 16), f"Nivel:  {nivel_cm} cm" if nivel_cm else "Nivel:  --", fill="white")
         draw.text((0, 32), f"Masa:   {masa_str}", fill="white")
-        draw.text((0, 48), mqtt_str, fill="white")
+        draw.text((0, 48), estado_str, fill="white")
 
 # ── Loop principal ────────────────────────────────────
 print(f"Sensores detectados: {len(sensores)}")
@@ -224,7 +269,8 @@ try:
             "masa_kg":    masa,
             "n_sensores": len(sensores),
             "t_amb":      t_amb,
-            "t_sup":      t_sup
+            "t_sup":      t_sup,
+            "bomba":      bomba_activa
         }
         mqtt_client.publish(MQTT_TOPIC, json.dumps(payload))
         print(f"Ciclo {ciclo} | T={temps} | nivel={nivel}m | masa={masa}kg")
@@ -232,6 +278,7 @@ try:
 
 except KeyboardInterrupt:
     print("\nDetenido.")
+    desactivar_bomba()
     GPIO.cleanup()
     mqtt_client.loop_stop()
     oled.cleanup()

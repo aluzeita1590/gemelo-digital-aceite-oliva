@@ -202,6 +202,7 @@ Ra ≈ 1.4×10⁶ indica que la convección natural es significativa. El modelo 
 | HX711 SCK | 23 | GPIO 11 |
 | OLED SDA | 3 | GPIO 2 |
 | OLED SCL | 5 | GPIO 3 |
+| Relé bomba (IN) | 40 | GPIO 21 |
 
 ---
 
@@ -265,6 +266,15 @@ sudo systemctl restart sensor.service
 ```bash
 # Rehacer tara de la celda de carga (tanque vacío)
 mosquitto_pub -h 192.168.1.104 -t tanque/cmd -m "tara"
+
+# Encender bomba manualmente (se mantiene hasta bomba/off)
+mosquitto_pub -h 192.168.1.104 -t tanque/cmd -m "bomba/on"
+
+# Apagar bomba
+mosquitto_pub -h 192.168.1.104 -t tanque/cmd -m "bomba/off"
+
+# Llenado automático: enciende 13 min → apaga → notifica al modelo (inicio/sup)
+mosquitto_pub -h 192.168.1.104 -t tanque/cmd -m "bomba/llenar"
 ```
 
 ### Control del modelo (topic: `modelo/cmd`)
@@ -283,10 +293,16 @@ mosquitto_pub -h 192.168.1.104 -t modelo/cmd -m "fluido/aceite"
 
 ### Flujo de trabajo para experimento de llenado
 
-1. Tanque vacío — enviar `inicio/sup` para establecer T_sup como condición inicial
-2. Abrir válvula — el fluido entra desde el tanque superior
-3. El modelo evoluciona desde T_sup hacia el gradiente real
-4. Los sensores de pared corrigen el modelo ciclo a ciclo
+**Automático (recomendado):**
+1. Enviar `bomba/llenar` → la bomba enciende 13 min, apaga sola y notifica al modelo (`inicio/sup`)
+2. Abrir válvula — el fluido entra desde el tanque superior ya a temperatura conocida
+3. El modelo evoluciona desde T_sup hacia el gradiente real, corrigiéndose con los sensores de pared
+
+**Manual:**
+1. Enviar `bomba/on` → llenar el tanque superior
+2. Cuando esté lleno, enviar `bomba/off`
+3. Enviar `inicio/sup` al modelo para establecer la condición inicial
+4. Abrir válvula
 
 ---
 

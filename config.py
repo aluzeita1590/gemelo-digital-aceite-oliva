@@ -34,10 +34,13 @@ INTERVALO_SENSOR_S = 10   # segundos entre publicaciones MQTT
 
 PIN_TRIG   = 24           # GPIO BCM — HC-SR04
 PIN_ECHO   = 25
+PIN_BOMBA  = 21           # GPIO BCM — pin físico 40 — relé bomba (HIGH = activo)
 
 ALTURA_CM    = 36.6       # altura máxima del tanque [cm] para HC-SR04
 HX711_FACTOR = 23850      # unidades por kg — calibración celda de carga
 TARA_FILE    = "/home/sebar/sensor/tara.txt"
+
+BOMBA_DURACION_LLENADO_MIN = 13   # minutos para llenar el tanque superior
 
 # IDs físicos de los sensores DS18B20 en la pared (DS0=base → DS4=tope)
 DS_PARED_IDS = [
