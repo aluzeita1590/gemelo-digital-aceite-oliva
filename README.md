@@ -164,6 +164,14 @@ En cada ciclo los nodos de pared se corrigen hacia las mediciones reales (asimil
 - k = 0.17 W/(m·°C)
 - Válido para T ∈ [10°C, 40°C]
 
+### Propiedades del agua (valores estándar a 20°C)
+
+- ρ(T) = 998.2 − 0.0975·T [kg/m³] — densidad variable (linealización local)
+- Cp = 4182 J/(kg·°C)
+- k = 0.598 W/(m·°C)
+
+El fluido activo se selecciona en tiempo real con el comando MQTT `fluido/aceite` o `fluido/agua` (ver sección Comandos MQTT). Al cambiar de fluido el modelo recalcula el paso temporal `dt` para mantener la estabilidad de Von Neumann.
+
 ### Versiones de referencia (archivos standalone)
 
 | Versión | Grilla | Laplaciano | Archivo |
