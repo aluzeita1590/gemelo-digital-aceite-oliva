@@ -21,10 +21,13 @@ MQTT_TOPIC   = config.MQTT_TOPIC_DATOS
 INTERVALO_S  = config.INTERVALO_SENSOR_S
 
 # ── Pines GPIO (BCM) ──────────────────────────────────
-PIN_TRIG     = config.PIN_TRIG
-PIN_ECHO     = config.PIN_ECHO
-PIN_BOMBA    = config.PIN_BOMBA
-ALTURA_CM    = config.ALTURA_CM
+PIN_TRIG          = config.PIN_TRIG
+PIN_ECHO          = config.PIN_ECHO
+PIN_BOMBA         = config.PIN_BOMBA
+PIN_FLUJO_ENTRADA = config.PIN_FLUJO_ENTRADA
+PIN_FLUJO_SALIDA  = config.PIN_FLUJO_SALIDA
+PULSOS_POR_LITRO  = config.FLUJO_PULSOS_POR_LITRO
+ALTURA_CM         = config.ALTURA_CM
 DURACION_LLENADO_S = config.BOMBA_DURACION_LLENADO_MIN * 60
 
 # ── Sensores ──────────────────────────────────────────
@@ -54,9 +57,11 @@ GPIO.setup(PIN_ECHO, GPIO.IN)
 GPIO.output(PIN_TRIG, False)
 GPIO.setup(PIN_BOMBA, GPIO.OUT)
 GPIO.output(PIN_BOMBA, GPIO.LOW)   # bomba apagada al iniciar
+GPIO.setup(PIN_FLUJO_ENTRADA, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+GPIO.setup(PIN_FLUJO_SALIDA,  GPIO.IN, pull_up_down=GPIO.PUD_UP)
 
 # ── HX711 ─────────────────────────────────────────────
-hx = HX711(dout_pin=9, pd_sck_pin=11)
+hx = HX711(dout_pin=11, pd_sck_pin=9)
 hx.reset()
 time.sleep(0.5)
 
@@ -89,6 +94,47 @@ TARA = cargar_tara()
 
 # ── Sensores temperatura ──────────────────────────────
 sensores = W1ThermSensor.get_available_sensors()
+
+# ── Sensores de flujo YF-S021 ────────────────────────
+_pulsos_entrada = 0
+_pulsos_salida  = 0
+vol_entrada_l   = 0.0
+vol_salida_l    = 0.0
+
+def _hilo_flujo():
+    global _pulsos_entrada, _pulsos_salida
+    prev_ent = GPIO.input(PIN_FLUJO_ENTRADA)
+    prev_sal = GPIO.input(PIN_FLUJO_SALIDA)
+    while True:
+        curr_ent = GPIO.input(PIN_FLUJO_ENTRADA)
+        curr_sal = GPIO.input(PIN_FLUJO_SALIDA)
+        if prev_ent == 0 and curr_ent == 1:
+            _pulsos_entrada += 1
+        if prev_sal == 0 and curr_sal == 1:
+            _pulsos_salida += 1
+        prev_ent = curr_ent
+        prev_sal = curr_sal
+        time.sleep(0.002)
+
+threading.Thread(target=_hilo_flujo, daemon=True).start()
+
+def leer_flujo():
+    """Lee pulsos acumulados desde el último ciclo y calcula caudal + volumen."""
+    global _pulsos_entrada, _pulsos_salida, vol_entrada_l, vol_salida_l
+    p_ent = _pulsos_entrada;  _pulsos_entrada = 0
+    p_sal = _pulsos_salida;   _pulsos_salida  = 0
+    litros_ent = p_ent / PULSOS_POR_LITRO
+    litros_sal = p_sal / PULSOS_POR_LITRO
+    vol_entrada_l += litros_ent
+    vol_salida_l  += litros_sal
+    caudal_ent = round(litros_ent / (INTERVALO_S / 60), 4)   # L/min
+    caudal_sal = round(litros_sal / (INTERVALO_S / 60), 4)
+    return {
+        "flujo_entrada_lmin": caudal_ent,
+        "flujo_salida_lmin":  caudal_sal,
+        "vol_entrada_l":      round(vol_entrada_l, 4),
+        "vol_salida_l":       round(vol_salida_l,  4),
+    }
 
 # ── Control de bomba ──────────────────────────────────
 bomba_activa   = False
@@ -261,6 +307,7 @@ try:
 
         t_amb = leer_temperatura_ambiente()
         t_sup = leer_temperatura_superior()
+        flujo = leer_flujo()
         payload = {
             "ts":         ciclo,
             "ciclo":      ciclo,
@@ -270,7 +317,8 @@ try:
             "n_sensores": len(sensores),
             "t_amb":      t_amb,
             "t_sup":      t_sup,
-            "bomba":      bomba_activa
+            "bomba":      bomba_activa,
+            **flujo,
         }
         mqtt_client.publish(MQTT_TOPIC, json.dumps(payload))
         print(f"Ciclo {ciclo} | T={temps} | nivel={nivel}m | masa={masa}kg")

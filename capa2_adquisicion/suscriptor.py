@@ -101,9 +101,26 @@ def on_message(client, userdata, msg):
                  .time(ts))
             write.write(bucket=INFLUX_BUCKET, record=p)
 
+        # Escribir caudal y volumen acumulado de sensores de flujo
+        for sensor_key, caudal_key, vol_key in [
+            ("entrada", "flujo_entrada_lmin", "vol_entrada_l"),
+            ("salida",  "flujo_salida_lmin",  "vol_salida_l"),
+        ]:
+            caudal = datos.get(caudal_key)
+            vol    = datos.get(vol_key)
+            if caudal is not None:
+                p = (Point("flujo")
+                     .tag("sensor", sensor_key)
+                     .field("caudal_lmin", float(caudal))
+                     .field("volumen_l",   float(vol))
+                     .time(ts))
+                write.write(bucket=INFLUX_BUCKET, record=p)
+
         print(f"[OK] ciclo={datos.get('ciclo')} "
               f"T={temps} nivel={datos.get('nivel_m')} "
-              f"masa={datos.get('masa_kg')}")
+              f"masa={datos.get('masa_kg')} "
+              f"flujo_ent={datos.get('flujo_entrada_lmin')} "
+              f"flujo_sal={datos.get('flujo_salida_lmin')}")
 
     except Exception as e:
         print(f"[ERROR] {e}")

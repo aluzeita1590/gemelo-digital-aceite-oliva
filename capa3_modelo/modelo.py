@@ -117,9 +117,13 @@ client    = InfluxDBClient(url=INFLUX_URL, token=INFLUX_TOKEN, org=INFLUX_ORG)
 write     = client.write_api(write_options=SYNCHRONOUS)
 query_api = client.query_api()
 
-# ── Servidor de imagen Flask ───────────────────────────
+# ── Servidor Flask ────────────────────────────────────
 app = Flask(__name__)
 imagen_actual = None
+
+def _cors(response):
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    return response
 
 @app.route('/heatmap')
 def heatmap():
@@ -127,6 +131,30 @@ def heatmap():
     if imagen_actual is None:
         return "Sin datos aún", 503
     return send_file(io.BytesIO(imagen_actual), mimetype='image/png')
+
+@app.route('/bomba/<comando>')
+def bomba_cmd(comando):
+    if comando not in ("on", "off", "llenar"):
+        return _cors(app.make_response(("Comando inválido", 400)))
+    modelo_mqtt.publish(config.MQTT_TOPIC_CMD_SENSOR, f"bomba/{comando}")
+    print(f"HTTP → bomba/{comando}")
+    return _cors(app.make_response(("ok", 200)))
+
+@app.route('/sensor/<comando>')
+def sensor_cmd(comando):
+    if comando not in ("tara",):
+        return _cors(app.make_response(("Comando inválido", 400)))
+    modelo_mqtt.publish(config.MQTT_TOPIC_CMD_SENSOR, comando)
+    print(f"HTTP → sensor: {comando}")
+    return _cors(app.make_response(("ok", 200)))
+
+@app.route('/modelo/<path:comando>')
+def modelo_cmd(comando):
+    if comando not in ("fluido/aceite", "fluido/agua", "reset", "inicio/sup"):
+        return _cors(app.make_response(("Comando inválido", 400)))
+    modelo_mqtt.publish(config.MQTT_TOPIC_CMD_MODELO, comando)
+    print(f"HTTP → modelo: {comando}")
+    return _cors(app.make_response(("ok", 200)))
 
 def iniciar_servidor():
     app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False)
@@ -145,14 +173,17 @@ def on_modelo_message(client, userdata, msg):
     elif comando == "reset":
         print("Reiniciando condición inicial con sensores de pared...")
         T = condicion_inicial_dinamica()
+        escribir_condicion_inicial(T, "sensores")
     elif comando == "inicio/sup":
         t_sup = leer_t_sup()
         if t_sup is not None:
             print(f"Iniciando con T_sup={t_sup:.2f}°C (tanque superior)")
             T = np.ones((Nr, Nz)) * t_sup
+            escribir_condicion_inicial(T, "t_sup")
         else:
             print("DS_SUP no disponible — usando sensores de pared")
             T = condicion_inicial_dinamica()
+            escribir_condicion_inicial(T, "sensores")
 
 modelo_mqtt = mqtt_lib.Client(mqtt_lib.CallbackAPIVersion.VERSION2)
 modelo_mqtt.on_message = on_modelo_message
@@ -284,6 +315,15 @@ def paso_tiempo(T):
 
     return T_new
 
+def escribir_condicion_inicial(T_matriz, origen):
+    """Guarda en InfluxDB la temperatura media de la condición inicial."""
+    p = (Point("modelo_estado")
+         .tag("origen", origen)
+         .field("T_ic", float(np.mean(T_matriz)))
+         .time(datetime.now(timezone.utc)))
+    write.write(bucket=INFLUX_BUCKET, record=p)
+    print(f"IC guardada: T_ic={np.mean(T_matriz):.2f}°C (origen={origen})")
+
 def escribir_modelo(T):
     ts = datetime.now(timezone.utc)
     points = []
@@ -329,11 +369,14 @@ if config.MODELO_IC_DEFAULT == "t_sup":
     if t_sup_init is not None:
         print(f"Condición inicial: T_sup={t_sup_init:.2f}°C (tanque superior)")
         T = np.ones((Nr, Nz)) * t_sup_init
+        escribir_condicion_inicial(T, "t_sup")
     else:
         print("DS_SUP no disponible — usando interpolación desde sensores de pared")
         T = condicion_inicial_dinamica()
+        escribir_condicion_inicial(T, "sensores")
 else:
     T = condicion_inicial_dinamica()
+    escribir_condicion_inicial(T, "sensores")
 
 
 # ── Loop principal ─────────────────────────────────────

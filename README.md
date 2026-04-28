@@ -59,6 +59,7 @@ generado por el modelo.
 | HC-SR04 | Nivel ultrasónico | 1 |
 | HX711 + celda de carga | Masa | 1 |
 | Display OLED 128×64 I2C | Visualización local | 1 |
+| 2× YF-S021 | Caudal y volumen acumulado (entrada y salida) | 1 |
 
 ---
 
@@ -203,6 +204,8 @@ Ra ≈ 1.4×10⁶ indica que la convección natural es significativa. El modelo 
 | OLED SDA | 3 | GPIO 2 |
 | OLED SCL | 5 | GPIO 3 |
 | Relé bomba (IN) | 40 | GPIO 21 |
+| YF-S021 entrada | 13 | GPIO 27 |
+| YF-S021 salida  | 15 | GPIO 22 |
 
 ---
 
@@ -290,6 +293,78 @@ mosquitto_pub -h 192.168.1.104 -t modelo/cmd -m "reset"
 mosquitto_pub -h 192.168.1.104 -t modelo/cmd -m "fluido/agua"
 mosquitto_pub -h 192.168.1.104 -t modelo/cmd -m "fluido/aceite"
 ```
+
+---
+
+## Sensores de flujo YF-S021
+
+Dos sensores Hall de efecto de flujo miden el caudal y el volumen acumulado:
+
+| Sensor | Posición | GPIO BCM | Pin físico |
+|--------|----------|----------|------------|
+| YF-S021 entrada | Entrada del tanque de prueba | GPIO 27 | 13 |
+| YF-S021 salida  | Salida del tanque de prueba  | GPIO 22 | 15 |
+
+Los pulsos se cuentan mediante un hilo de polling a 2 ms (500 Hz de muestreo), lo que supera con margen la frecuencia máxima del sensor (~225 Hz a caudal pleno). Se usa polling en lugar de interrupts GPIO por una incompatibilidad de `RPi.GPIO` con el kernel actual de la RPi Zero 2W (`Failed to add edge detection`).
+
+### Parámetros
+
+| Parámetro | Valor | Descripción |
+|-----------|-------|-------------|
+| `FLUJO_PULSOS_POR_LITRO` | 450 | Pulsos/L — valor teórico YF-S021, calibrar experimentalmente |
+
+### Calibración
+
+Pasar 1 L conocido por cada sensor y comparar el `vol_entrada_l` / `vol_salida_l` reportado en MQTT antes y después. Ajustar `FLUJO_PULSOS_POR_LITRO` en `config.py`.
+
+### Datos publicados en MQTT y InfluxDB
+
+El payload MQTT incluye los campos:
+
+```json
+{
+  "flujo_entrada_lmin": 1.23,
+  "flujo_salida_lmin":  0.98,
+  "vol_entrada_l":      12.5,
+  "vol_salida_l":       11.8
+}
+```
+
+En InfluxDB se escribe el measurement `flujo` con tag `sensor = "entrada"` o `"salida"` y campos `caudal_lmin` y `volumen_l`.
+
+### Queries Flux para Grafana
+
+**Caudal entrada y salida (Time series):**
+
+```flux
+from(bucket: "gemelo")
+  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+  |> filter(fn: (r) => r._measurement == "flujo")
+  |> filter(fn: (r) => r._field == "caudal_lmin")
+  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)
+```
+
+**Volumen acumulado (Time series):**
+
+```flux
+from(bucket: "gemelo")
+  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+  |> filter(fn: (r) => r._measurement == "flujo")
+  |> filter(fn: (r) => r._field == "volumen_l")
+  |> aggregateWindow(every: v.windowPeriod, fn: last, createEmpty: false)
+```
+
+**Volumen total actual (Stat panel):**
+
+```flux
+from(bucket: "gemelo")
+  |> range(start: -24h)
+  |> filter(fn: (r) => r._measurement == "flujo" and r.sensor == "entrada")
+  |> filter(fn: (r) => r._field == "volumen_l")
+  |> last()
+```
+
+---
 
 ### Flujo de trabajo para experimento de llenado
 
