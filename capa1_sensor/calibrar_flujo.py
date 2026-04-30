@@ -17,7 +17,7 @@ import time
 import statistics
 
 # ── Parámetros — ajustar si es necesario ──────────────
-PIN          = 27       # GPIO BCM — entrada (PIN_FLUJO_ENTRADA en config.py)
+PIN          = 22       # GPIO BCM — entrada (PIN_FLUJO_ENTRADA en config.py)
 REPETICIONES = 5        # ensayos; mínimo 3
 VOLUMEN_L    = 1.000    # litros vertidos en cada ensayo
 # ──────────────────────────────────────────────────────
