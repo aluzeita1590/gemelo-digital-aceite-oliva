@@ -107,10 +107,6 @@ MODELO_IC_DEFAULT  = "t_sup"           # Condición inicial al arrancar: "t_sup"
 MODELO_ALPHA_K     = 0.6               # Ganancia asimilación de datos
 ```
 
-### Secretos (.env)
-
-El token de InfluxDB **no va en el código**. Se define en un archivo `.env`:
-
 ```bash
 # .env (no commitear)
 INFLUX_TOKEN=your_influxdb_token_here
@@ -319,11 +315,12 @@ Los pulsos se cuentan mediante un hilo de polling a 2 ms (500 Hz de muestreo), l
 
 | Parámetro | Valor | Descripción |
 |-----------|-------|-------------|
-| `FLUJO_PULSOS_POR_LITRO` | 450 | Pulsos/L — valor teórico YF-S021, calibrar experimentalmente |
+| `FLUJO_PULSOS_POR_LITRO_ENTRADA` | 482 | Pulsos/L — sensor entrada, calibrado experimentalmente (2026-04-30) |
+| `FLUJO_PULSOS_POR_LITRO_SALIDA`  | 468 | Pulsos/L — sensor salida,  calibrado experimentalmente (2026-04-30) |
 
 ### Calibración
 
-Pasar 1 L conocido por cada sensor y comparar el `vol_entrada_l` / `vol_salida_l` reportado en MQTT antes y después. Ajustar `FLUJO_PULSOS_POR_LITRO` en `config.py`.
+Ejecutar `capa1_sensor/calibrar_flujo.py` en la RPi con `sensor.py` detenido. El script guía 5 ensayos de 1 L y calcula el factor promedio. Actualizar `FLUJO_PULSOS_POR_LITRO_ENTRADA` o `FLUJO_PULSOS_POR_LITRO_SALIDA` en `config.py` según corresponda (cambiar `PIN` en el script entre GPIO 27 y GPIO 22).
 
 ### Datos publicados en MQTT y InfluxDB
 
