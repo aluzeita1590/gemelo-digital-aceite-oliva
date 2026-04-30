@@ -26,7 +26,8 @@ PIN_ECHO          = config.PIN_ECHO
 PIN_BOMBA         = config.PIN_BOMBA
 PIN_FLUJO_ENTRADA = config.PIN_FLUJO_ENTRADA
 PIN_FLUJO_SALIDA  = config.PIN_FLUJO_SALIDA
-PULSOS_POR_LITRO  = config.FLUJO_PULSOS_POR_LITRO
+PULSOS_POR_LITRO_ENTRADA = config.FLUJO_PULSOS_POR_LITRO_ENTRADA
+PULSOS_POR_LITRO_SALIDA  = config.FLUJO_PULSOS_POR_LITRO_SALIDA
 ALTURA_CM         = config.ALTURA_CM
 DURACION_LLENADO_S = config.BOMBA_DURACION_LLENADO_MIN * 60
 
@@ -123,8 +124,8 @@ def leer_flujo():
     global _pulsos_entrada, _pulsos_salida, vol_entrada_l, vol_salida_l
     p_ent = _pulsos_entrada;  _pulsos_entrada = 0
     p_sal = _pulsos_salida;   _pulsos_salida  = 0
-    litros_ent = p_ent / PULSOS_POR_LITRO
-    litros_sal = p_sal / PULSOS_POR_LITRO
+    litros_ent = p_ent / PULSOS_POR_LITRO_ENTRADA
+    litros_sal = p_sal / PULSOS_POR_LITRO_SALIDA
     vol_entrada_l += litros_ent
     vol_salida_l  += litros_sal
     caudal_ent = round(litros_ent / (INTERVALO_S / 60), 4)   # L/min
