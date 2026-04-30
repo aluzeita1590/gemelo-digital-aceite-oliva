@@ -43,7 +43,7 @@ ALTURA_CM    = 36.6       # altura máxima del tanque [cm] para HC-SR04
 HX711_FACTOR = 23850      # unidades por kg — calibración celda de carga
 TARA_FILE    = "/home/sebar/sensor/tara.txt"
 
-BOMBA_DURACION_LLENADO_MIN = 4.85   # minutos para llenar el tanque superior
+BOMBA_DURACION_LLENADO_MIN = 5.333   # minutos para llenar el tanque superior
 
 # IDs físicos de los sensores DS18B20 en la pared (DS0=base → DS4=tope)
 DS_PARED_IDS = [
