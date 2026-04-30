@@ -374,7 +374,7 @@ from(bucket: "gemelo")
 ### Flujo de trabajo para experimento de llenado
 
 **Automático (recomendado):**
-1. Enviar `bomba/llenar` → la bomba enciende 13 min, apaga sola y notifica al modelo (`inicio/sup`)
+1. Enviar `bomba/llenar` → la bomba enciende 5 min 20 seg, apaga sola y notifica al modelo (`inicio/sup`)
 2. Abrir válvula — el fluido entra desde el tanque superior ya a temperatura conocida
 3. El modelo evoluciona desde T_sup hacia el gradiente real, corrigiéndose con los sensores de pared
 
