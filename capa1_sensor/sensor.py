@@ -281,7 +281,7 @@ def actualizar_display(temps, nivel, masa):
     nivel_cm  = round(nivel * 100, 1) if nivel >= 0 else None
     masa_str  = f"{masa:.2f} kg" if masa >= 0 else "--"
     estado_str = ("MQTT:OK" if mqtt_ok else "MQTT:--") + \
-                 ("  BOMBA:ON" if bomba_activa else "  BOMBA:--")
+                 ("  BOM:ON" if bomba_activa else "  BOM:OFF")
 
     with canvas(oled) as draw:
         draw.text((0,  0), f"T prom: {t_prom} C" if t_prom else "T prom: --", fill="white")
