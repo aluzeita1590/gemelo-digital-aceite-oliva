@@ -29,6 +29,12 @@ INFLUX_BUCKET = "gemelo"
 TANQUE_R_M = 0.141    # radio [m]  — prototipo 20 L
 TANQUE_H_M = 0.366    # altura [m]
 
+# ── Pared del tanque (resistencia térmica) ────────────────────
+# Prototipo: HDPE ~3 mm, k=0.45 W/(m·°C)
+# Tanque real (acero inox): e=0.005 m, k=16 W/(m·°C)
+TANQUE_PARED_ESPESOR_M = 0.003   # [m]
+TANQUE_PARED_K         = 0.45    # [W/(m·°C)] — conductividad térmica del material
+
 # ── Capa 1 — Sensor (RPi Zero 2W) ───────────────────────────
 INTERVALO_SENSOR_S = 10   # segundos entre publicaciones MQTT
 

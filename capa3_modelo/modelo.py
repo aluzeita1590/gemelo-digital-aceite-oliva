@@ -106,6 +106,12 @@ h_ext   = config.MODELO_H_EXT
 alpha_K = config.MODELO_ALPHA_K
 T_amb   = 25.0   # temperatura ambiente [°C] — se actualiza dinámicamente
 
+# Coeficiente global U [W/(m²·°C)]: 1/U = e_pared/k_pared + 1/h_ext
+# Combina resistencia de la pared y convección exterior en serie.
+_e = config.TANQUE_PARED_ESPESOR_M
+_k = config.TANQUE_PARED_K
+U_ext = 1.0 / (_e / _k + 1.0 / h_ext)
+
 # dt se define dentro de cargar_fluido
 dt = 30.0
 
@@ -306,8 +312,8 @@ def paso_tiempo(T):
         (T[0, 2:] - 2*T[0, 1:-1] + T[0, :-2]) / dz**2
     )
 
-    # r = R: condición Robin (convección exterior)
-    T_new[-1, :] = (T[-2, :] + dr * (h_ext / k) * T_amb) / (1 + dr * h_ext / k)
+    # r = R: condición Robin con resistencia de pared + convección exterior (U_ext)
+    T_new[-1, :] = (T[-2, :] + dr * (U_ext / k) * T_amb) / (1 + dr * U_ext / k)
 
     # z = 0 y z = H: adiabático
     T_new[:, 0]  = T_new[:, 1]
