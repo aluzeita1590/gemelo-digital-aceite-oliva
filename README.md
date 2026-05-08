@@ -152,6 +152,20 @@ En cada ciclo los nodos de pared se corrigen hacia las mediciones reales (asimil
 | h_ext | 5.0 W/(m²·°C) | Convección exterior — pendiente calibración |
 | alpha_K | 0.6 | Ganancia asimilación de datos |
 | IC default | `t_sup` | Condición inicial al arrancar el servicio |
+| `TANQUE_PARED_ESPESOR_M` | 0.003 m | Espesor de pared — prototipo HDPE 3 mm |
+| `TANQUE_PARED_K` | 0.45 W/(m·°C) | Conductividad pared — HDPE (acero inox: 16) |
+
+La resistencia térmica de la pared se incorpora en la condición Robin mediante el coeficiente global `U`:
+
+```
+1/U = e_pared/k_pared + 1/h_ext
+```
+
+Para el tanque industrial (acero inoxidable) cambiar en `config.py`:
+```python
+TANQUE_PARED_ESPESOR_M = 0.005   # [m]
+TANQUE_PARED_K         = 16.0    # [W/(m·°C)]
+```
 
 ### Propiedades del aceite (Ribeiro et al. 2017, Fasina y Colley 2008)
 
@@ -219,38 +233,41 @@ Los scripts corren como servicios systemd en sus respectivas RPis.
 
 ### Rutas en producción
 
+Ambas RPis tienen el repositorio clonado en `~/gemelo-digital-aceite-oliva/`. Los servicios systemd apuntan directamente a esas rutas.
+
 | Script | Ruta en RPi |
 |--------|------------|
-| `sensor.py` | `/home/sebar/sensor/sensor.py` (RPi Zero) |
-| `config.py` | `/home/sebar/sensor/config.py` (RPi Zero) |
-| `suscriptor.py` | `/home/sebar/gemelo/suscriptor.py` (RPi 5) |
-| `modelo.py` | `/home/sebar/modelo/modelo.py` (RPi 5) |
-| `config.py` | `/home/sebar/config.py` (RPi 5 — padre común) |
+| `sensor.py` | `/home/sebar/gemelo-digital-aceite-oliva/capa1_sensor/sensor.py` (RPi Zero) |
+| `suscriptor.py` | `/home/sebar/gemelo-digital-aceite-oliva/capa2_adquisicion/suscriptor.py` (RPi 5) |
+| `modelo.py` | `/home/sebar/gemelo-digital-aceite-oliva/capa3_modelo/modelo.py` (RPi 5) |
+| `config.py` | `/home/sebar/gemelo-digital-aceite-oliva/config.py` (ambas RPis) |
 | `.env` | `/home/sebar/.env` (RPi 5 — no en git) |
 
-### Actualizar scripts en producción
+### Flujo de actualización
 
-Desde Git Bash en Windows, después de hacer `git pull`:
-
+**1. Desde el PC (Git Bash):**
 ```bash
-# RPi 5
-scp config.py sebar@192.168.1.104:/home/sebar/config.py
-scp capa3_modelo/modelo.py sebar@192.168.1.104:/home/sebar/modelo/modelo.py
-scp capa2_adquisicion/suscriptor.py sebar@192.168.1.104:/home/sebar/gemelo/suscriptor.py
-
-# RPi Zero
-scp config.py sebar@192.168.1.106:/home/sebar/sensor/config.py
-scp capa1_sensor/sensor.py sebar@192.168.1.106:/home/sebar/sensor/sensor.py
+git add .
+git commit -m "descripción del cambio"
+git push origin main
 ```
 
-Reiniciar servicios en RPi 5:
+**2. En la RPi Zero (`sensor`):**
 ```bash
-sudo systemctl restart modelo.service suscriptor.service
+cd ~/gemelo-digital-aceite-oliva
+git pull origin main
+sudo systemctl restart sensor
 ```
 
-Reiniciar en RPi Zero:
+**3. En la RPi 5 (`gemelo5`):**
 ```bash
-sudo systemctl restart sensor.service
+cd ~/gemelo-digital-aceite-oliva
+git pull origin main
+sudo systemctl restart suscriptor modelo
+
+# Si se actualizó telegraf.conf también:
+sudo cp capa2_adquisicion/telegraf.conf /etc/telegraf/telegraf.conf
+sudo systemctl restart telegraf
 ```
 
 ---
@@ -371,38 +388,6 @@ El payload MQTT incluye los campos:
 ```
 
 En InfluxDB se escribe el measurement `flujo` con tag `sensor = "entrada"` o `"salida"` y campos `caudal_lmin` y `volumen_l`.
-
-### Queries Flux para Grafana
-
-**Caudal entrada y salida (Time series):**
-
-```flux
-from(bucket: "gemelo")
-  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
-  |> filter(fn: (r) => r._measurement == "flujo")
-  |> filter(fn: (r) => r._field == "caudal_lmin")
-  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)
-```
-
-**Volumen acumulado (Time series):**
-
-```flux
-from(bucket: "gemelo")
-  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
-  |> filter(fn: (r) => r._measurement == "flujo")
-  |> filter(fn: (r) => r._field == "volumen_l")
-  |> aggregateWindow(every: v.windowPeriod, fn: last, createEmpty: false)
-```
-
-**Volumen total actual (Stat panel):**
-
-```flux
-from(bucket: "gemelo")
-  |> range(start: -24h)
-  |> filter(fn: (r) => r._measurement == "flujo" and r.sensor == "entrada")
-  |> filter(fn: (r) => r._field == "volumen_l")
-  |> last()
-```
 
 ---
 
