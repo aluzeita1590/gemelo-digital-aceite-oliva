@@ -280,7 +280,7 @@ mosquitto_pub -h 192.168.1.104 -t tanque/cmd -m "bomba/on"
 # Apagar bomba
 mosquitto_pub -h 192.168.1.104 -t tanque/cmd -m "bomba/off"
 
-# Llenado automático: enciende 13 min → apaga → notifica al modelo (inicio/sup)
+# Llenado automático: enciende 5 min 20 seg → apaga → notifica al modelo (inicio/sup)
 mosquitto_pub -h 192.168.1.104 -t tanque/cmd -m "bomba/llenar"
 ```
 
