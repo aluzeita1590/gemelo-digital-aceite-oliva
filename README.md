@@ -257,12 +257,47 @@ sudo systemctl restart sensor.service
 
 ## Pipeline de datos
 
-**Opción A — Suscriptor Python** (activa, con validación de rangos físicos)
-- Escribe en bucket: `gemelo`
+Existen dos pipelines paralelos activos que escriben en buckets separados de InfluxDB:
 
-**Opción B — Telegraf** (alternativa, sin validación)
-- Configuración: `capa2_adquisicion/telegraf.conf`
-- Escribe en bucket: `gemelo_telegraf`
+### Pipeline A — Suscriptor Python (`gemelo`)
+
+```
+Sensor → MQTT → suscriptor.py → InfluxDB (bucket: gemelo)
+                                        ↑
+modelo.py ──────────────────────────────┘  (escribe directo)
+```
+
+- Valida rangos físicos antes de escribir (descarta lecturas fuera de rango)
+- Normaliza los datos en measurements separados: `temperatura`, `nivel`, `masa`, `flujo`, `bomba`
+- El modelo termofísico escribe sus resultados (`temperatura_modelo`, `modelo_estado`) **directamente** en este bucket, sin pasar por MQTT
+- Corre como `suscriptor.service` (systemd)
+- **Dashboard Grafana principal** — incluye heatmap y datos del modelo
+
+### Pipeline B — Telegraf (`gemelo_telegraf`)
+
+```
+Sensor → MQTT → Telegraf → InfluxDB (bucket: gemelo_telegraf)
+
+modelo.py → InfluxDB (gemelo)   ← Telegraf NO tiene acceso
+```
+
+- Sin validación de rangos físicos
+- Todos los campos en un único measurement: `mqtt_consumer`
+- También recolecta métricas del sistema de la RPi 5: `cpu`, `mem`, `disk`, `temp`
+- Configuración: `capa2_adquisicion/telegraf.conf` → copiado en `/etc/telegraf/telegraf.conf`
+- Corre como `telegraf.service` (systemd)
+- **Dashboard Grafana secundario** — datos del sensor + métricas del sistema RPi 5
+
+### ¿Por qué dos dashboards?
+
+El modelo termofísico escribe sus resultados directamente en InfluxDB (bucket `gemelo`), **no publica por MQTT**. Por lo tanto Telegraf nunca los ve y el dashboard de Telegraf no puede mostrar el heatmap ni los datos del modelo. Ambos pipelines son complementarios:
+
+| | `gemelo` | `gemelo_telegraf` |
+|---|---|---|
+| Datos del sensor | ✓ (validados) | ✓ (sin validar) |
+| Datos del modelo T(r,z) | ✓ | ✗ |
+| Heatmap | ✓ | ✗ |
+| Métricas sistema RPi 5 | ✗ | ✓ |
 
 ---
 
