@@ -101,6 +101,13 @@ def on_message(client, userdata, msg):
                  .time(ts))
             write.write(bucket=INFLUX_BUCKET, record=p)
 
+        # Escribir estado bomba
+        if "bomba" in datos:
+            p = (Point("bomba")
+                 .field("estado", int(bool(datos["bomba"])))
+                 .time(ts))
+            write.write(bucket=INFLUX_BUCKET, record=p)
+
         # Escribir caudal y volumen acumulado de sensores de flujo
         for sensor_key, caudal_key, vol_key in [
             ("entrada", "flujo_entrada_lmin", "vol_entrada_l"),
