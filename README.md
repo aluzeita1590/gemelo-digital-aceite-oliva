@@ -87,8 +87,10 @@ gemelo-digital-aceite-oliva/
     ├── docker-compose.yml             # Orquestación (preparado, pendiente de despliegue)
     ├── modelo/
     │   ├── Dockerfile                 # Imagen del modelo (usa capa3_modelo/modelo.py)
-    │   ├── requirements.txt
-    │   └── modelo.py                  # OBSOLETO — reemplazado por capa3_modelo/modelo.py
+    │   └── requirements.txt
+    ├── suscriptor/
+    │   ├── Dockerfile                 # Imagen del suscriptor
+    │   └── requirements.txt
     └── mosquitto/
         └── config/mosquitto.conf
 ```
@@ -407,6 +409,51 @@ En InfluxDB se escribe el measurement `flujo` con tag `sensor = "entrada"` o `"s
 ---
 
 ## Despliegue con Docker (pendiente)
+
+### Justificación de la arquitectura actual
+
+El sistema se desarrolló con servicios systemd directamente en la RPi 5 en lugar de Docker por razones prácticas de desarrollo:
+
+- **Iteración rápida:** cada cambio se aplica con `git pull` + `systemctl restart` en segundos, sin reconstruir imágenes
+- **Depuración directa:** logs en tiempo real sin capas de abstracción adicionales
+- **Compatibilidad con hardware:** el suscriptor Python y el modelo acceden a InfluxDB local sin configuración de red entre contenedores
+
+La migración a Docker está planificada para el despliegue en el servidor del laboratorio UACh, que es el destino final del sistema para escalar a los tanques industriales de 30.000 L. El `docker-compose.yml` ya está preparado en el repositorio.
+
+### Estado actual del docker-compose.yml
+
+| Contenedor | Estado |
+|---|---|
+| `mosquitto` | ✓ listo |
+| `influxdb` | ✓ listo |
+| `grafana` | ✓ listo |
+| `modelo` | ✓ listo (usa `capa3_modelo/modelo.py` directamente) |
+| `suscriptor` | ✓ listo (`docker/suscriptor/`) |
+
+### Procedimiento de migración (cuando corresponda)
+
+**1. Backup del InfluxDB actual (RPi 5):**
+```bash
+influx backup /home/sebar/influx_backup --host http://localhost:8086 --token <TOKEN>
+```
+
+**2. Apagar servicios systemd:**
+```bash
+sudo systemctl stop modelo suscriptor telegraf
+```
+
+**3. Levantar Docker:**
+```bash
+cd ~/gemelo-digital-aceite-oliva/docker
+docker-compose up -d
+```
+
+**4. Restaurar datos en Docker InfluxDB:**
+```bash
+docker exec influxdb influx restore /backup
+```
+
+**5. Actualizar token** en `.env` con el nuevo token generado por Docker InfluxDB.
 
 Para migrar al servidor del laboratorio.
 

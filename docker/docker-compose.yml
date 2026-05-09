@@ -49,6 +49,22 @@ services:
     depends_on:
       - influxdb
 
+  # ── Suscriptor MQTT → InfluxDB ────────────────────────
+  suscriptor:
+    build:
+      context: ..
+      dockerfile: docker/suscriptor/Dockerfile
+    container_name: suscriptor
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    environment:
+      - INFLUX_URL=http://influxdb:8086
+      - MQTT_BROKER=mosquitto
+    depends_on:
+      - influxdb
+      - mosquitto
+
   # ── Modelo 2D + servidor Flask ─────────────────────────
   modelo:
     build:
