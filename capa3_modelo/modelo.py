@@ -296,8 +296,8 @@ def actualizar_con_sensores(T, temps):
 
 def paso_tiempo(T):
     T_new         = T.copy()
-    rho           = rho_0 - alpha * (T - T_0)
-    alpha_t_local = k / (rho * Cp)
+    rho           = rho_0 - alpha * (T - T_0) #Densidad
+    alpha_t_local = k / (rho * Cp) #Difusividad
 
     # Nodos interiores — Laplaciano vectorizado
     T_new[1:-1, 1:-1] = T[1:-1, 1:-1] + dt * alpha_t_local[1:-1, 1:-1] * (
@@ -351,8 +351,8 @@ def generar_imagen(T):
     fig, ax = plt.subplots(figsize=(5, 7))
     r_full = np.concatenate([-r[::-1], r[1:]]) * 100
     T_full = np.concatenate([T[::-1, :], T[1:, :]], axis=0)
-    vmin = np.min(T) - 0.1
-    vmax = np.max(T) + 0.1
+    vmin = 10.0
+    vmax = 45.0
     im = ax.contourf(r_full, z * 100, T_full.T, levels=20,
                      cmap='RdYlBu_r', vmin=vmin, vmax=vmax)
     plt.colorbar(im, ax=ax, label='T [°C]')
