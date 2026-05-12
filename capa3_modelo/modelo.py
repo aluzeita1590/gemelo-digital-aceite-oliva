@@ -351,10 +351,10 @@ def generar_imagen(T):
     fig, ax = plt.subplots(figsize=(5, 7))
     r_full = np.concatenate([-r[::-1], r[1:]]) * 100
     T_full = np.concatenate([T[::-1, :], T[1:, :]], axis=0)
-    vmin = 10.0
-    vmax = 45.0
+    vmin = np.min(T)
+    vmax = np.max(T)
     im = ax.contourf(r_full, z * 100, T_full.T, levels=20,
-                     cmap='RdYlBu_r', vmin=vmin, vmax=vmax)
+                     cmap='plasma', vmin=vmin, vmax=vmax)
     plt.colorbar(im, ax=ax, label='T [°C]')
     ax.set_xlabel('Radio [cm]')
     ax.set_ylabel('Altura [cm]')
