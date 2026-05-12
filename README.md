@@ -1,7 +1,6 @@
 # Gemelo Digital — Tanque de Almacenamiento de Aceite de Oliva
 
 **Trabajo de Titulación — Ingeniería Civil Electrónica, UACh**  
-Empresa colaboradora: Las 200  
 Autor: Sebastián Araneda
 
 ---
@@ -10,7 +9,7 @@ Autor: Sebastián Araneda
 
 Sistema de gemelo digital para un tanque prototipo de 20 L de aceite de oliva,
 organizado en una arquitectura de 4 capas escalable a los tanques industriales
-de 30.000 L de Las 200.
+de 50.000 L de Las 200.
 
 El sistema estima en tiempo real la distribución espacial de temperatura T(r,z,t),
 nivel y masa del aceite, a partir de las temperaturas medidas en la pared exterior
@@ -43,7 +42,7 @@ generado por el modelo.
 - Kiosco en monitor conectado a la Pi 5
 
 > La Raspberry Pi `gemelo5` es el servidor provisional.
-> La migración al servidor del laboratorio UACh (con Docker) está planificada.
+> La migración a servidor de la UACh (con Docker) está planificada.
 
 ---
 
@@ -68,7 +67,7 @@ generado por el modelo.
 ```
 gemelo-digital-aceite-oliva/
 ├── config.py                          # Configuración central (único lugar para cambiar parámetros)
-├── .env                               # Token InfluxDB — NO se commitea (ver .env.example)
+├── .env                               # Token InfluxDB — (ver .env.example)
 ├── .env.example                       # Plantilla del .env
 │
 ├── capa1_sensor/
@@ -110,7 +109,7 @@ MODELO_ALPHA_K     = 0.6               # Ganancia asimilación de datos
 ```
 
 ```bash
-# .env (no commitear)
+# .env
 INFLUX_TOKEN=your_influxdb_token_here
 ```
 
@@ -243,36 +242,8 @@ Ambas RPis tienen el repositorio clonado en `~/gemelo-digital-aceite-oliva/`. Lo
 | `suscriptor.py` | `/home/sebar/gemelo-digital-aceite-oliva/capa2_adquisicion/suscriptor.py` (RPi 5) |
 | `modelo.py` | `/home/sebar/gemelo-digital-aceite-oliva/capa3_modelo/modelo.py` (RPi 5) |
 | `config.py` | `/home/sebar/gemelo-digital-aceite-oliva/config.py` (ambas RPis) |
-| `.env` | `/home/sebar/.env` (RPi 5 — no en git) |
+| `.env` | `/home/sebar/.env` (RPi 5) |
 
-### Flujo de actualización
-
-**1. Desde el PC (Git Bash):**
-```bash
-git add .
-git commit -m "descripción del cambio"
-git push origin main
-```
-
-**2. En la RPi Zero (`sensor`):**
-```bash
-cd ~/gemelo-digital-aceite-oliva
-git pull origin main
-sudo systemctl restart sensor
-```
-
-**3. En la RPi 5 (`gemelo5`):**
-```bash
-cd ~/gemelo-digital-aceite-oliva
-git pull origin main
-sudo systemctl restart suscriptor modelo
-
-# Si se actualizó telegraf.conf también:
-sudo cp capa2_adquisicion/telegraf.conf /etc/telegraf/telegraf.conf
-sudo systemctl restart telegraf
-```
-
----
 
 ## Pipeline de datos
 
@@ -418,7 +389,7 @@ El sistema se desarrolló con servicios systemd directamente en la RPi 5 en luga
 - **Depuración directa:** logs en tiempo real sin capas de abstracción adicionales
 - **Compatibilidad con hardware:** el suscriptor Python y el modelo acceden a InfluxDB local sin configuración de red entre contenedores
 
-La migración a Docker está planificada para el despliegue en el servidor del laboratorio UACh, que es el destino final del sistema para escalar a los tanques industriales de 30.000 L. El `docker-compose.yml` ya está preparado en el repositorio.
+La migración a Docker está planificada para el despliegue en el servidor del laboratorio UACh. El `docker-compose.yml` ya está preparado en el repositorio.
 
 ### Estado actual del docker-compose.yml
 
