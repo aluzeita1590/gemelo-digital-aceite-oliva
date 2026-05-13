@@ -71,7 +71,8 @@ gemelo-digital-aceite-oliva/
 ├── .env.example                       # Plantilla del .env
 │
 ├── capa1_sensor/
-│   └── sensor.py                      # Script en producción — RPi Zero 2W
+│   ├── sensor.py                      # Script en producción — RPi Zero 2W
+│   └── calibrar_flujo.py              # Calibración de sensores YF-S021
 │
 ├── capa2_adquisicion/
 │   ├── suscriptor.py                  # Script en producción — RPi 5
@@ -244,6 +245,40 @@ Ambas RPis tienen el repositorio clonado en `~/gemelo-digital-aceite-oliva/`. Lo
 | `config.py` | `/home/sebar/gemelo-digital-aceite-oliva/config.py` (ambas RPis) |
 | `.env` | `/home/sebar/.env` (RPi 5) |
 
+
+## Monitoreo de servicios
+
+### Ver estado
+
+```bash
+sudo systemctl status sensor        # RPi Zero
+sudo systemctl status suscriptor    # RPi 5
+sudo systemctl status modelo        # RPi 5
+sudo systemctl status telegraf      # RPi 5
+```
+
+### Ver logs en tiempo real
+
+```bash
+sudo journalctl -u sensor -f
+sudo journalctl -u suscriptor -f
+sudo journalctl -u modelo -f
+sudo journalctl -u telegraf -f
+```
+
+### Reiniciar un servicio
+
+```bash
+sudo systemctl restart modelo
+```
+
+### Ver últimas líneas del log
+
+```bash
+sudo journalctl -u modelo -n 50
+```
+
+---
 
 ## Pipeline de datos
 
