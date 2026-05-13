@@ -209,3 +209,6 @@ tara.txt
 
 # Archivos locales
 CLAUDE (1).md
+
+# Resultados de calibración (imágenes generadas localmente)
+capa3_modelo/resultados_calibracion/*.png

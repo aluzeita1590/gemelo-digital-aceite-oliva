@@ -16,6 +16,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from influxdb_client import InfluxDBClient
 from scipy.interpolate import interp1d
+from datetime import datetime
 
 _script_dir = os.path.dirname(os.path.abspath(__file__))
 _parent_dir = os.path.dirname(_script_dir)
@@ -253,7 +254,12 @@ def main():
                  arrowprops=dict(arrowstyle='->', color='black'), fontsize=9)
 
     plt.tight_layout()
-    out_path = os.path.join(_script_dir, 'calibracion_h_ext.png')
+
+    # Guardar en carpeta resultados con timestamp para no sobreescribir
+    resultados_dir = os.path.join(_script_dir, 'resultados_calibracion')
+    os.makedirs(resultados_dir, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    out_path = os.path.join(resultados_dir, f'calibracion_h_ext_{FLUIDO}_{timestamp}.png')
     plt.savefig(out_path, dpi=120, bbox_inches='tight')
     print(f"\nGráfico guardado: {out_path}")
     plt.show()
