@@ -245,6 +245,65 @@ def leer_t_amb():
             return float(record.get_value())
     return None
 
+def leer_nivel():
+    """Lee el nivel del fluido desde InfluxDB (HC-SR04) en metros."""
+    flux = f'''
+    from(bucket: "{INFLUX_BUCKET}")
+      |> range(start: -2m)
+      |> filter(fn: (r) => r._measurement == "nivel")
+      |> filter(fn: (r) => r._field == "valor")
+      |> last()
+    '''
+    result = query_api.query(flux)
+    for table in result:
+        for record in table.records:
+            return float(record.get_value())
+    return None
+
+def leer_masa():
+    """Lee la masa del fluido desde InfluxDB (HX711) en kg."""
+    flux = f'''
+    from(bucket: "{INFLUX_BUCKET}")
+      |> range(start: -2m)
+      |> filter(fn: (r) => r._measurement == "masa")
+      |> filter(fn: (r) => r._field == "valor")
+      |> last()
+    '''
+    result = query_api.query(flux)
+    for table in result:
+        for record in table.records:
+            return float(record.get_value())
+    return None
+
+def calcular_volumen_masa(T, h_nivel):
+    """
+    Integra nodo a nodo el campo de densidad ρ(r,z) del modelo.
+    Solo considera los nodos con z ≤ h_nivel (fluido real medido).
+    Devuelve (V_modelo_L, M_modelo_kg, V_nivel_L).
+    """
+    # Volumen de referencia desde el nivel (cilindro perfecto)
+    V_nivel_L = np.pi * R**2 * h_nivel * 1000.0
+
+    V_modelo  = 0.0
+    M_modelo  = 0.0
+
+    for i in range(Nr):
+        for j in range(Nz):
+            if z[j] > h_nivel:
+                continue
+            rho_nodo = rho_0 - alpha * (T[i, j] - T_0)
+
+            # Volumen del anillo — eje central usa cilindro pequeño
+            if i == 0:
+                dV = np.pi * (dr / 2.0)**2 * dz
+            else:
+                dV = 2.0 * np.pi * r[i] * dr * dz
+
+            V_modelo += dV
+            M_modelo += rho_nodo * dV
+
+    return V_modelo * 1000.0, M_modelo, V_nivel_L  # V en litros, M en kg
+
 def leer_t_sup():
     """Lee la temperatura del tanque superior desde InfluxDB (DS_SUP)."""
     flux = f'''
@@ -346,7 +405,7 @@ def escribir_modelo(T):
             points.append(p)
     write.write(bucket=INFLUX_BUCKET, record=points)
 
-def generar_imagen(T):
+def generar_imagen(T, V_niv_L=None, V_mod_L=None, masa_hx=None, M_mod=None):
     global imagen_actual
     fig, ax = plt.subplots(figsize=(6, 7))
     r_full = np.concatenate([-r[::-1], r[1:]]) * 100
@@ -375,6 +434,24 @@ def generar_imagen(T):
     ax.set_title(f'T(r,z) — Gemelo Digital [{FLUIDO_ACTIVO}]\n'
                  f'T_prom={np.mean(T):.2f}°C  ΔT={np.max(T)-np.min(T):.2f}°C')
     ax.axvline(0, color='white', linewidth=0.8, linestyle='--', alpha=0.6)
+
+    # Cuadro de volumen y masa en la esquina inferior
+    if V_niv_L is not None:
+        lineas = [
+            f'V nivel : {V_niv_L:.2f} L',
+            f'V modelo: {V_mod_L:.2f} L',
+        ]
+        if masa_hx is not None:
+            lineas += [
+                f'M HX711 : {masa_hx:.3f} kg',
+                f'M modelo: {M_mod:.3f} kg',
+            ]
+        texto = '\n'.join(lineas)
+        ax.text(0.02, 0.02, texto, transform=ax.transAxes,
+                fontsize=7, verticalalignment='bottom',
+                bbox=dict(boxstyle='round,pad=0.4', facecolor='black',
+                          alpha=0.6, edgecolor='none'),
+                color='white', family='monospace')
     buf = io.BytesIO()
     plt.savefig(buf, format='png', dpi=100, bbox_inches='tight')
     plt.close()
@@ -421,7 +498,24 @@ try:
             T = actualizar_con_sensores(T, temps)
             print(f"Sensores: {[round(t,2) for t in temps]}")
 
-        generar_imagen(T)
+        # Volumen y masa
+        h_nivel  = leer_nivel()
+        masa_hx  = leer_masa()
+        V_mod_L = M_mod = V_niv_L = None
+        if h_nivel is not None and 0 < h_nivel <= H:
+            V_mod_L, M_mod, V_niv_L = calcular_volumen_masa(T, h_nivel)
+            if ciclo % 6 == 0:
+                ts_now = datetime.now(timezone.utc)
+                p = (Point("volumen_masa")
+                     .field("V_nivel_L",  round(V_niv_L, 3))
+                     .field("V_modelo_L", round(V_mod_L, 3))
+                     .time(ts_now))
+                if masa_hx is not None:
+                    p = p.field("M_hx711_kg",  round(masa_hx, 3))
+                    p = p.field("M_modelo_kg", round(M_mod, 3))
+                write.write(bucket=INFLUX_BUCKET, record=p)
+
+        generar_imagen(T, V_niv_L, V_mod_L, masa_hx, M_mod)
 
         if ciclo % 6 == 0:   # escribir en InfluxDB cada 60 segundos
             escribir_modelo(T)
@@ -432,6 +526,9 @@ try:
         print(f"[{FLUIDO_ACTIVO}] T_prom={T_prom:.2f}°C | "
               f"T_max={T_max:.2f}°C | T_min={T_min:.2f}°C | "
               f"ΔT={T_max-T_min:.2f}°C")
+        if V_niv_L is not None:
+            print(f"  V_nivel={V_niv_L:.2f}L | V_modelo={V_mod_L:.2f}L | "
+                  f"M_hx711={masa_hx:.3f}kg | M_modelo={M_mod:.3f}kg")
 
         time.sleep(INTERVALO_S)
 
