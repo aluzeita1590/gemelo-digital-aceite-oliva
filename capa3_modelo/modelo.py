@@ -348,14 +348,28 @@ def escribir_modelo(T):
 
 def generar_imagen(T):
     global imagen_actual
-    fig, ax = plt.subplots(figsize=(5, 7))
+    fig, ax = plt.subplots(figsize=(6, 7))
     r_full = np.concatenate([-r[::-1], r[1:]]) * 100
     T_full = np.concatenate([T[::-1, :], T[1:, :]], axis=0)
     vmin = np.min(T)
     vmax = np.max(T)
     im = ax.contourf(r_full, z * 100, T_full.T, levels=20,
                      cmap='plasma', vmin=vmin, vmax=vmax)
-    plt.colorbar(im, ax=ax, label='T [°C]')
+
+    # Colorbar temperatura — derecha
+    fig.colorbar(im, ax=ax, label='T [°C]', location='right', fraction=0.046, pad=0.04)
+
+    # Colorbar densidad — izquierda
+    # plasma_r: amarillo (abajo) = ρ mínima (T alta), morado (arriba) = ρ máxima (T baja)
+    rho_vmin = rho_0 - alpha * (vmax - T_0)  # densidad en T máxima → menor densidad
+    rho_vmax = rho_0 - alpha * (vmin - T_0)  # densidad en T mínima → mayor densidad
+    sm_rho = plt.cm.ScalarMappable(
+        cmap='plasma_r',
+        norm=plt.Normalize(vmin=rho_vmin, vmax=rho_vmax)
+    )
+    sm_rho.set_array([])
+    fig.colorbar(sm_rho, ax=ax, label='ρ [kg/m³]', location='left', fraction=0.046, pad=0.04)
+
     ax.set_xlabel('Radio [cm]')
     ax.set_ylabel('Altura [cm]')
     ax.set_title(f'T(r,z) — Gemelo Digital [{FLUIDO_ACTIVO}]\n'
