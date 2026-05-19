@@ -368,7 +368,7 @@ def generar_imagen(T):
         norm=plt.Normalize(vmin=rho_vmin, vmax=rho_vmax)
     )
     sm_rho.set_array([])
-    fig.colorbar(sm_rho, ax=ax, label='ρ [kg/m³]', location='left', fraction=0.046, pad=0.04)
+    fig.colorbar(sm_rho, ax=ax, label='ρ [kg/m³]', location='left', fraction=0.046, pad=0.18)
 
     ax.set_xlabel('Radio [cm]')
     ax.set_ylabel('Altura [cm]')
