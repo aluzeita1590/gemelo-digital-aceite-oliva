@@ -527,8 +527,9 @@ try:
               f"T_max={T_max:.2f}°C | T_min={T_min:.2f}°C | "
               f"ΔT={T_max-T_min:.2f}°C")
         if V_niv_L is not None:
+            masa_hx_str = f"{masa_hx:.3f}kg" if masa_hx is not None else "N/A"
             print(f"  V_nivel={V_niv_L:.2f}L | V_modelo={V_mod_L:.2f}L | "
-                  f"M_hx711={masa_hx:.3f}kg | M_modelo={M_mod:.3f}kg")
+                  f"M_hx711={masa_hx_str} | M_modelo={M_mod:.3f}kg")
 
         time.sleep(INTERVALO_S)
 
