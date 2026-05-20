@@ -101,6 +101,15 @@ dz = H / (Nz - 1)
 r  = np.linspace(0, R, Nr)
 z  = np.linspace(0, H, Nz)
 
+# Interpolador de radio real R(z) — tanque es frustum cónico, no cilindro perfecto
+_R_real_interp = interp1d(
+    config.TANQUE_R_MEDICIONES_Z_M,
+    config.TANQUE_R_MEDICIONES_R_M,
+    kind='linear', fill_value='extrapolate', bounds_error=False
+)
+def R_real(z_val):
+    return float(_R_real_interp(z_val))
+
 # ── Parámetros del modelo ──────────────────────────────
 h_ext   = config.MODELO_H_EXT
 alpha_K = config.MODELO_ALPHA_K
@@ -277,27 +286,34 @@ def leer_masa():
 
 def calcular_volumen_masa(T, h_nivel):
     """
-    Integra nodo a nodo el campo de densidad ρ(r,z) del modelo.
-    Solo considera los nodos con z ≤ h_nivel (fluido real medido).
+    Integra nodo a nodo el campo de densidad ρ(r,z) usando la geometría
+    real del tanque (frustum cónico). R(z) varía linealmente con la altura.
+    Solo considera nodos con z ≤ h_nivel.
     Devuelve (V_modelo_L, M_modelo_kg, V_nivel_L).
     """
-    # Volumen de referencia desde el nivel (cilindro perfecto)
-    V_nivel_L = np.pi * R**2 * h_nivel * 1000.0
+    # Volumen real desde el nivel: integra π·R(z)² sobre los nodos hasta h_nivel
+    V_nivel_L = sum(
+        np.pi * R_real(z[j])**2 * dz
+        for j in range(Nz) if z[j] <= h_nivel
+    ) * 1000.0
 
-    V_modelo  = 0.0
-    M_modelo  = 0.0
+    V_modelo = 0.0
+    M_modelo = 0.0
 
-    for i in range(Nr):
-        for j in range(Nz):
-            if z[j] > h_nivel:
-                continue
+    for j in range(Nz):
+        if z[j] > h_nivel:
+            continue
+        R_j  = R_real(z[j])        # radio real en esta altura
+        dr_j = R_j / (Nr - 1)      # dr local para esta altura
+
+        for i in range(Nr):
             rho_nodo = rho_0 - alpha * (T[i, j] - T_0)
+            r_local  = i * dr_j    # radio real del nodo i en esta altura
 
-            # Volumen del anillo — eje central usa cilindro pequeño
             if i == 0:
-                dV = np.pi * (dr / 2.0)**2 * dz
+                dV = np.pi * (dr_j / 2.0)**2 * dz
             else:
-                dV = 2.0 * np.pi * r[i] * dr * dz
+                dV = 2.0 * np.pi * r_local * dr_j * dz
 
             V_modelo += dV
             M_modelo += rho_nodo * dV

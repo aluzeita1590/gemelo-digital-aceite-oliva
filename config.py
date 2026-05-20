@@ -26,8 +26,13 @@ INFLUX_BUCKET = "gemelo"
 # INFLUX_TOKEN: NO va aquí — leer con os.environ.get("INFLUX_TOKEN")
 
 # ── Geometría del tanque ──────────────────────────────────────
-TANQUE_R_M = 0.141    # radio [m]  — prototipo 20 L
+TANQUE_R_M = 0.141    # radio nominal [m] — usado por el solver térmico
 TANQUE_H_M = 0.366    # altura [m]
+
+# Geometría real medida (tanque es un frustum cónico, no cilindro perfecto)
+# Mediciones: altura [m] → radio interno [m]
+TANQUE_R_MEDICIONES_Z_M = [0.038, 0.190, 0.380]
+TANQUE_R_MEDICIONES_R_M = [0.133, 0.139, 0.1445]
 
 # ── Pared del tanque (resistencia térmica) ────────────────────
 # Prototipo: HDPE ~3 mm, k=0.45 W/(m·°C)
