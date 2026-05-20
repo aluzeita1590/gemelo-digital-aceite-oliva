@@ -191,6 +191,49 @@ El fluido activo se selecciona en tiempo real con el comando MQTT `fluido/aceite
 | v2.1 | Nr=3, Nz=7 | Loops Python | `tanque_modelo_2D_v2.py` |
 | v3.0 | Nr=15, Nz=20 | Vectorizado NumPy (~50× más rápido) | `tanque_modelo_2D_v3.py` |
 
+### Geometría real del tanque
+
+El tanque prototipo no es un cilindro perfecto — el radio interno crece linealmente desde la base hasta la tapa (frustum cónico). El solver térmico usa el radio nominal `TANQUE_R_M` como aproximación, pero el cálculo de volumen y masa usa la geometría real medida:
+
+| Altura | Diámetro medido | Radio |
+|--------|----------------|-------|
+| 3.8 cm (base) | 26.6 cm | 0.133 m |
+| 19.0 cm (mitad) | 27.8 cm | 0.139 m |
+| 38.0 cm (tapa) | 28.9 cm | 0.1445 m |
+
+El radio real `R(z)` se interpola linealmente entre estos puntos mediante `TANQUE_R_MEDICIONES_Z_M` y `TANQUE_R_MEDICIONES_R_M` en `config.py`.
+
+### Cálculo de volumen y masa
+
+En cada ciclo el modelo estima el volumen y la masa del fluido usando tres métodos complementarios:
+
+**V_nivel** — desde el sensor HC-SR04, integrando la sección real A(z) = π·R(z)²:
+```
+V_nivel = Σ π·R(z_j)²·dz   para z_j ≤ h_medido
+```
+
+**V_modelo / M_modelo** — integración nodo a nodo del campo de densidad ρ(r,z):
+```
+dV(i,j) = 2π·r_local·dr_j·dz      (anillo)
+dV(0,j) = π·(dr_j/2)²·dz          (eje central)
+dM(i,j) = ρ(i,j)·dV(i,j)
+```
+Donde `r_local = i·dr_j` y `dr_j = R(z_j)/(Nr-1)` usan el radio real en cada altura.
+
+**M_HX711** — masa medida directamente por la celda de carga.
+
+Los resultados se escriben en InfluxDB como measurement `volumen_masa` cada 60 segundos con campos `V_nivel_L`, `V_modelo_L`, `M_hx711_kg` y `M_modelo_kg`. También se muestran en el heatmap como cuadro de texto en la esquina inferior izquierda.
+
+Con la corrección geométrica, la diferencia entre V_nivel y V_modelo se redujo de 14% a ~7%.
+
+### Visualización del heatmap
+
+El heatmap en `http://192.168.1.104:5000/heatmap` muestra:
+- **Mapa de color** `plasma` con la distribución T(r,z)
+- **Barra derecha** — escala de temperatura [°C]
+- **Barra izquierda** — escala de densidad ρ [kg/m³] (colormap `plasma_r`, colores coinciden con el mapa)
+- **Cuadro inferior** — valores de volumen y masa en tiempo real
+
 ### Limitación conocida
 
 Ra ≈ 1.4×10⁶ indica que la convección natural es significativa. El modelo asume fluido estático (conducción pura). Incorporar convección natural queda propuesto como trabajo futuro.
