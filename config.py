@@ -48,8 +48,8 @@ PIN_ECHO   = 25
 PIN_BOMBA  = 21           # GPIO BCM — pin físico 40 — relé bomba (HIGH = activo)
 PIN_FLUJO_ENTRADA = 27    # GPIO BCM — pin físico 13 — YF-S021 entrada tanque
 PIN_FLUJO_SALIDA  = 22    # GPIO BCM — pin físico 15 — YF-S021 salida tanque
-FLUJO_PULSOS_POR_LITRO_ENTRADA = 482   # YF-S021 entrada — calibrado experimentalmente
-FLUJO_PULSOS_POR_LITRO_SALIDA  = 468   # YF-S021 salida  — calibrado experimentalmente
+FLUJO_PULSOS_POR_LITRO_ENTRADA = 478   # YF-S021 entrada — calibrado experimentalmente
+FLUJO_PULSOS_POR_LITRO_SALIDA  = 311   # YF-S021 salida  — calibrado experimentalmente (con flexible)
 
 ALTURA_CM    = 36.6       # altura máxima del tanque [cm] para HC-SR04
 HX711_FACTOR = 23850      # unidades por kg — calibración celda de carga
