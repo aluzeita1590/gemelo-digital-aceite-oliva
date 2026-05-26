@@ -284,6 +284,22 @@ def leer_masa():
             return float(record.get_value())
     return None
 
+def leer_volumen_flujo(sensor):
+    """Lee el volumen acumulado [L] de un sensor de flujo (entrada o salida)."""
+    flux = f'''
+    from(bucket: "{INFLUX_BUCKET}")
+      |> range(start: -2m)
+      |> filter(fn: (r) => r._measurement == "flujo")
+      |> filter(fn: (r) => r.sensor == "{sensor}")
+      |> filter(fn: (r) => r._field == "volumen_l")
+      |> last()
+    '''
+    result = query_api.query(flux)
+    for table in result:
+        for record in table.records:
+            return float(record.get_value())
+    return None
+
 def calcular_volumen_masa(T, h_nivel):
     """
     Integra nodo a nodo el campo de densidad ρ(r,z) usando la geometría
@@ -421,7 +437,7 @@ def escribir_modelo(T):
             points.append(p)
     write.write(bucket=INFLUX_BUCKET, record=points)
 
-def generar_imagen(T, V_niv_L=None, V_mod_L=None, masa_hx=None, M_mod=None):
+def generar_imagen(T, V_niv_L=None, V_mod_L=None, masa_hx=None, M_mod=None, V_bal_L=None):
     global imagen_actual
     fig, ax = plt.subplots(figsize=(6, 7))
     r_full = np.concatenate([-r[::-1], r[1:]]) * 100
@@ -454,13 +470,15 @@ def generar_imagen(T, V_niv_L=None, V_mod_L=None, masa_hx=None, M_mod=None):
     # Cuadro de volumen y masa en la esquina inferior
     if V_niv_L is not None:
         lineas = [
-            f'V nivel : {V_niv_L:.2f} L',
-            f'V modelo: {V_mod_L:.2f} L',
+            f'V nivel   : {V_niv_L:.2f} L',
+            f'V modelo  : {V_mod_L:.2f} L',
         ]
+        if V_bal_L is not None:
+            lineas.append(f'V balance : {V_bal_L:.2f} L')
         if masa_hx is not None:
             lineas += [
-                f'M HX711 : {masa_hx:.3f} kg',
-                f'M modelo: {M_mod:.3f} kg',
+                f'M HX711  : {masa_hx:.3f} kg',
+                f'M modelo : {M_mod:.3f} kg',
             ]
         texto = '\n'.join(lineas)
         ax.text(0.02, 0.02, texto, transform=ax.transAxes,
@@ -496,6 +514,13 @@ else:
 print(f"Modelo 2D iniciado. Fluido: {FLUIDO_ACTIVO}. Actualizando cada {INTERVALO_S}s\n")
 ciclo = 0
 
+# Valores iniciales para el balance de masa (se capturan al arrancar)
+_vol_entrada_0 = leer_volumen_flujo("entrada")
+_vol_salida_0  = leer_volumen_flujo("salida")
+_vol_nivel_0   = None   # se captura en el primer ciclo con datos válidos
+print(f"Balance de masa — referencia inicial: "
+      f"V_ent={_vol_entrada_0} L | V_sal={_vol_salida_0} L")
+
 try:
     while True:
         ciclo += 1
@@ -517,9 +542,21 @@ try:
         # Volumen y masa
         h_nivel  = leer_nivel()
         masa_hx  = leer_masa()
-        V_mod_L = M_mod = V_niv_L = None
+        V_mod_L = M_mod = V_niv_L = V_bal_L = None
         if h_nivel is not None and 0 < h_nivel <= H:
             V_mod_L, M_mod, V_niv_L = calcular_volumen_masa(T, h_nivel)
+
+            # Balance de masa: V_balance = V_nivel_inicial + ΔV_entrada - ΔV_salida
+            if _vol_nivel_0 is None:
+                _vol_nivel_0 = V_niv_L   # captura el nivel inicial en el primer ciclo válido
+            v_ent = leer_volumen_flujo("entrada")
+            v_sal = leer_volumen_flujo("salida")
+            if (v_ent is not None and v_sal is not None
+                    and _vol_entrada_0 is not None and _vol_salida_0 is not None):
+                V_bal_L = (_vol_nivel_0
+                           + (v_ent - _vol_entrada_0)
+                           - (v_sal - _vol_salida_0))
+
             if ciclo % 6 == 0:
                 ts_now = datetime.now(timezone.utc)
                 p = (Point("volumen_masa")
@@ -529,9 +566,11 @@ try:
                 if masa_hx is not None:
                     p = p.field("M_hx711_kg",  round(masa_hx, 3))
                     p = p.field("M_modelo_kg", round(M_mod, 3))
+                if V_bal_L is not None:
+                    p = p.field("V_balance_L", round(V_bal_L, 3))
                 write.write(bucket=INFLUX_BUCKET, record=p)
 
-        generar_imagen(T, V_niv_L, V_mod_L, masa_hx, M_mod)
+        generar_imagen(T, V_niv_L, V_mod_L, masa_hx, M_mod, V_bal_L)
 
         if ciclo % 6 == 0:   # escribir en InfluxDB cada 60 segundos
             escribir_modelo(T)
