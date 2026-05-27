@@ -222,9 +222,17 @@ Donde `r_local = i·dr_j` y `dr_j = R(z_j)/(Nr-1)` usan el radio real en cada al
 
 **M_HX711** — masa medida directamente por la celda de carga.
 
-Los resultados se escriben en InfluxDB como measurement `volumen_masa` cada 60 segundos con campos `V_nivel_L`, `V_modelo_L`, `M_hx711_kg` y `M_modelo_kg`. También se muestran en el heatmap como cuadro de texto en la esquina inferior izquierda.
+**V_balance** — balance de masa usando los sensores de flujo como referencia independiente:
+```
+V_balance(t) = V_nivel(t₀) + ΔV_entrada(t) − ΔV_salida(t)
+```
+Donde `t₀` es el instante de arranque del modelo y `ΔV` es el volumen acumulado desde ese momento según cada YF-S021. Sirve como validación cruzada entre el HC-SR04 y los sensores de flujo.
+
+Los resultados se escriben en InfluxDB como measurement `volumen_masa` cada 60 segundos con campos `V_nivel_L`, `V_modelo_L`, `V_balance_L`, `M_hx711_kg` y `M_modelo_kg`. También se muestran en el heatmap como cuadro de texto en la esquina inferior izquierda.
 
 Con la corrección geométrica, la diferencia entre V_nivel y V_modelo se redujo de 14% a ~7%.
+
+> **Nota de arranque:** al reiniciar el sistema, siempre detener/reiniciar primero `sensor.service` y esperar ~30 segundos antes de reiniciar `modelo.service`. Si ambos se reinician simultáneamente, el sensor resetea sus contadores de volumen a 0 pero InfluxDB aún conserva los valores anteriores — esto hace que V_balance calcule un delta incorrecto al arrancar.
 
 ### Visualización del heatmap
 
@@ -418,8 +426,10 @@ Los pulsos se cuentan mediante un hilo de polling a 2 ms (500 Hz de muestreo), l
 
 | Parámetro | Valor | Descripción |
 |-----------|-------|-------------|
-| `FLUJO_PULSOS_POR_LITRO_ENTRADA` | 482 | Pulsos/L — sensor entrada, calibrado experimentalmente (2026-04-30) |
-| `FLUJO_PULSOS_POR_LITRO_SALIDA`  | 468 | Pulsos/L — sensor salida,  calibrado experimentalmente (2026-04-30) |
+| `FLUJO_PULSOS_POR_LITRO_ENTRADA` | 478 | Pulsos/L — sensor entrada, calibrado experimentalmente (2026-05-27) |
+| `FLUJO_PULSOS_POR_LITRO_SALIDA`  | 331 | Pulsos/L — sensor salida, ajustado por balance de masa (2026-05-27, con flexible en desagüe) |
+
+> El sensor de salida cambió de 468 → 311 (calibración volumétrica) → 331 (ajuste por balance de masa) tras instalar un flexible en la línea de desagüe que redujo el caudal. Los YF-S021 no tienen factor constante a caudales muy bajos — calibrar siempre en las condiciones reales de operación.
 
 ### Calibración
 
