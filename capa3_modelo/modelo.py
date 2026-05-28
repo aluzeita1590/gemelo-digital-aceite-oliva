@@ -352,6 +352,25 @@ def leer_t_sup():
             return float(record.get_value())
     return None
 
+def leer_t_int():
+    """Lee la temperatura interior del tanque desde InfluxDB (DS_INT, sensor sumergible)."""
+    flux = f'''
+    from(bucket: "{INFLUX_BUCKET}")
+      |> range(start: -2m)
+      |> filter(fn: (r) => r._measurement == "temperatura")
+      |> filter(fn: (r) => r.sensor == "DS_INT")
+      |> filter(fn: (r) => r._field == "valor")
+      |> last()
+    '''
+    result = query_api.query(flux)
+    for table in result:
+        for record in table.records:
+            return float(record.get_value())
+    return None
+
+# Nodo del modelo correspondiente al sensor interior (r=0, z≈19.1 cm)
+_INT_J = Nz // 2   # z[Nz//2] ≈ 20.1 cm — nodo más cercano al sensor
+
 def condicion_inicial_dinamica():
     """Lee sensores y construye T inicial con interpolación + extrapolación."""
     temps = leer_temperaturas_pared()
@@ -437,7 +456,8 @@ def escribir_modelo(T):
             points.append(p)
     write.write(bucket=INFLUX_BUCKET, record=points)
 
-def generar_imagen(T, V_niv_L=None, V_mod_L=None, masa_hx=None, M_mod=None, V_bal_L=None):
+def generar_imagen(T, V_niv_L=None, V_mod_L=None, masa_hx=None, M_mod=None, V_bal_L=None,
+                   t_int_med=None, t_int_mod=None):
     global imagen_actual
     fig, ax = plt.subplots(figsize=(6, 7))
     r_full = np.concatenate([-r[::-1], r[1:]]) * 100
@@ -451,9 +471,8 @@ def generar_imagen(T, V_niv_L=None, V_mod_L=None, masa_hx=None, M_mod=None, V_ba
     fig.colorbar(im, ax=ax, label='T [°C]', location='right', fraction=0.046, pad=0.04)
 
     # Colorbar densidad — izquierda
-    # plasma_r: amarillo (abajo) = ρ mínima (T alta), morado (arriba) = ρ máxima (T baja)
-    rho_vmin = rho_0 - alpha * (vmax - T_0)  # densidad en T máxima → menor densidad
-    rho_vmax = rho_0 - alpha * (vmin - T_0)  # densidad en T mínima → mayor densidad
+    rho_vmin = rho_0 - alpha * (vmax - T_0)
+    rho_vmax = rho_0 - alpha * (vmin - T_0)
     sm_rho = plt.cm.ScalarMappable(
         cmap='plasma_r',
         norm=plt.Normalize(vmin=rho_vmin, vmax=rho_vmax)
@@ -467,9 +486,18 @@ def generar_imagen(T, V_niv_L=None, V_mod_L=None, masa_hx=None, M_mod=None, V_ba
                  f'T_prom={np.mean(T):.2f}°C  ΔT={np.max(T)-np.min(T):.2f}°C')
     ax.axvline(0, color='white', linewidth=0.8, linestyle='--', alpha=0.6)
 
-    # Cuadro de volumen y masa en la esquina inferior
+    # Marcador del sensor interior DS_INT en el heatmap (r=0, z=19.1 cm)
+    if t_int_med is not None:
+        ax.scatter([0], [z[_INT_J] * 100], marker='o', s=60,
+                   color='cyan', edgecolors='white', linewidths=0.8,
+                   zorder=5, label=f'DS_INT ({t_int_med:.2f}°C)')
+        ax.legend(fontsize=7, loc='upper right',
+                  facecolor='black', labelcolor='white', framealpha=0.6)
+
+    # Cuadro de volumen, masa y validación interior
+    lineas = []
     if V_niv_L is not None:
-        lineas = [
+        lineas += [
             f'V nivel   : {V_niv_L:.2f} L',
             f'V modelo  : {V_mod_L:.2f} L',
         ]
@@ -480,8 +508,15 @@ def generar_imagen(T, V_niv_L=None, V_mod_L=None, masa_hx=None, M_mod=None, V_ba
                 f'M HX711  : {masa_hx:.3f} kg',
                 f'M modelo : {M_mod:.3f} kg',
             ]
-        texto = '\n'.join(lineas)
-        ax.text(0.02, 0.02, texto, transform=ax.transAxes,
+    if t_int_med is not None and t_int_mod is not None:
+        error = t_int_mod - t_int_med
+        lineas += [
+            f'T int med : {t_int_med:.2f} °C',
+            f'T int mod : {t_int_mod:.2f} °C',
+            f'Error int : {error:+.2f} °C',
+        ]
+    if lineas:
+        ax.text(0.02, 0.02, '\n'.join(lineas), transform=ax.transAxes,
                 fontsize=7, verticalalignment='bottom',
                 bbox=dict(boxstyle='round,pad=0.4', facecolor='black',
                           alpha=0.6, edgecolor='none'),
@@ -570,7 +605,25 @@ try:
                     p = p.field("V_balance_L", round(V_bal_L, 3))
                 write.write(bucket=INFLUX_BUCKET, record=p)
 
-        generar_imagen(T, V_niv_L, V_mod_L, masa_hx, M_mod, V_bal_L)
+        # Validación interior: DS_INT vs T[0, _INT_J]
+        t_int_med = leer_t_int()
+        t_int_mod = float(T[0, _INT_J])
+        if t_int_med is not None and ciclo % 6 == 0:
+            error_int = t_int_mod - t_int_med
+            ts_now = datetime.now(timezone.utc)
+            p_val = (Point("validacion_interior")
+                     .field("T_medida_C",  round(t_int_med, 3))
+                     .field("T_modelo_C",  round(t_int_mod, 3))
+                     .field("error_C",     round(error_int, 3))
+                     .field("nodo_z_cm",   round(float(z[_INT_J] * 100), 1))
+                     .time(ts_now))
+            write.write(bucket=INFLUX_BUCKET, record=p_val)
+            print(f"  DS_INT: med={t_int_med:.2f}°C | mod={t_int_mod:.2f}°C | "
+                  f"err={error_int:+.2f}°C")
+
+        generar_imagen(T, V_niv_L, V_mod_L, masa_hx, M_mod, V_bal_L,
+                       t_int_med=t_int_med,
+                       t_int_mod=t_int_mod if t_int_med is not None else None)
 
         if ciclo % 6 == 0:   # escribir en InfluxDB cada 60 segundos
             escribir_modelo(T)
