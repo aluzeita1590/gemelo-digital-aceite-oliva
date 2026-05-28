@@ -479,7 +479,7 @@ def generar_imagen(T, V_niv_L=None, V_mod_L=None, masa_hx=None, M_mod=None, V_ba
     )
     sm_rho.set_array([])
     cb_rho = fig.colorbar(sm_rho, ax=ax, label='ρ [kg/m³]', location='left', fraction=0.046, pad=0.18)
-    cb_rho.formatter = matplotlib.ticker.FormatStrFormatter('%.1f')
+    cb_rho.formatter = matplotlib.ticker.FormatStrFormatter('%.2f')
     cb_rho.update_ticks()
 
     ax.set_xlabel('Radio [cm]')
