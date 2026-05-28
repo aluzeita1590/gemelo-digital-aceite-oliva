@@ -27,7 +27,7 @@ INFLUX_BUCKET = "gemelo"
 
 # ── Geometría del tanque ──────────────────────────────────────
 TANQUE_R_M = 0.141    # radio nominal [m] — usado por el solver térmico
-TANQUE_H_M = 0.366    # altura [m]
+TANQUE_H_M = 0.382    # altura [m]
 
 # Geometría real medida (tanque es un frustum cónico, no cilindro perfecto)
 # Mediciones: altura [m] → radio interno [m]
@@ -51,7 +51,7 @@ PIN_FLUJO_SALIDA  = 22    # GPIO BCM — pin físico 15 — YF-S021 salida tanqu
 FLUJO_PULSOS_POR_LITRO_ENTRADA = 478   # YF-S021 entrada — calibrado experimentalmente
 FLUJO_PULSOS_POR_LITRO_SALIDA  = 331   # YF-S021 salida  — ajustado por balance (con flexible)
 
-ALTURA_CM    = 36.6       # altura máxima del tanque [cm] para HC-SR04
+ALTURA_CM    = 38.2       # altura máxima del tanque [cm] para HC-SR04
 HX711_FACTOR = 23850      # unidades por kg — calibración celda de carga
 TARA_FILE    = "/home/sebar/sensor/tara.txt"
 
