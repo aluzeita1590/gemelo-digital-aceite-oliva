@@ -59,7 +59,7 @@ BOMBA_DURACION_LLENADO_MIN = 5.333   # minutos para llenar el tanque superior
 
 # IDs físicos de los sensores DS18B20 en la pared (DS0=base → DS4=tope)
 DS_PARED_IDS = [
-    "01215cc6aad0",  # DS0 —  0.0 cm
+    "00000095fc87",  # DS0 —  0.0 cm
     "01215cbf83da",  # DS1 —  7.5 cm
     "01215caa0b06",  # DS2 — 15.0 cm
     "01215ceeecc6",  # DS3 — 22.5 cm
@@ -70,6 +70,7 @@ DS_PARED_POSICIONES_CM = [0.0, 7.5, 15.0, 22.5, 30.0]
 DS_AMB1_ID = "2ce8f30a6461"   # temperatura ambiente — sensor 1
 DS_AMB2_ID = "b5d9f30a6461"   # temperatura ambiente — sensor 2
 DS_SUP_ID  = "01215cd8d6d3"   # temperatura fluido en tanque superior
+DS_INT_ID  = "01215cc6aad0"   # temperatura interior del tanque (encapsulado sumergible)
 
 # ── Capa 3 — Modelo (RPi 5 / servidor) ───────────────────────
 INTERVALO_MODELO_S = 10   # segundos entre iteraciones del loop

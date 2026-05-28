@@ -36,6 +36,7 @@ SENSOR_IDS     = config.DS_PARED_IDS
 SENSOR_AMB1_ID = config.DS_AMB1_ID
 SENSOR_AMB2_ID = config.DS_AMB2_ID
 SENSOR_SUP_ID  = config.DS_SUP_ID
+SENSOR_INT_ID  = config.DS_INT_ID
 
 # ── Calibración HX711 ─────────────────────────────────
 HX711_FACTOR = config.HX711_FACTOR
@@ -240,6 +241,16 @@ def leer_temperatura_superior():
                 return None
     return None
 
+def leer_temperatura_interior():
+    """Temperatura del fluido en el interior del tanque (sensor sumergible)."""
+    for s in sensores:
+        if s.id == SENSOR_INT_ID:
+            try:
+                return round(s.get_temperature(), 3)
+            except:
+                return None
+    return None
+
 def leer_nivel():
     lecturas = []
     for _ in range(5):
@@ -308,6 +319,7 @@ try:
 
         t_amb = leer_temperatura_ambiente()
         t_sup = leer_temperatura_superior()
+        t_int = leer_temperatura_interior()
         flujo = leer_flujo()
         payload = {
             "ts":         ciclo,
@@ -318,6 +330,7 @@ try:
             "n_sensores": len(sensores),
             "t_amb":      t_amb,
             "t_sup":      t_sup,
+            "t_int":      t_int,
             "bomba":      bomba_activa,
             **flujo,
         }

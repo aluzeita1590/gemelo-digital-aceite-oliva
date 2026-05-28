@@ -86,7 +86,16 @@ def on_message(client, userdata, msg):
                 .tag("sensor", "DS_SUP")
                 .field("valor", float(t_sup))
                 .time(ts))
-            write.write(bucket=INFLUX_BUCKET, record=p) 
+            write.write(bucket=INFLUX_BUCKET, record=p)
+
+        # Escribir temperatura interior del tanque (sensor sumergible)
+        t_int = datos.get("t_int")
+        if t_int is not None:
+            p = (Point("temperatura")
+                .tag("sensor", "DS_INT")
+                .field("valor", float(t_int))
+                .time(ts))
+            write.write(bucket=INFLUX_BUCKET, record=p)
 
         # Escribir nivel y masa
         if datos.get("nivel_m", -1) >= 0:
