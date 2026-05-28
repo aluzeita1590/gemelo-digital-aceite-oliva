@@ -478,7 +478,9 @@ def generar_imagen(T, V_niv_L=None, V_mod_L=None, masa_hx=None, M_mod=None, V_ba
         norm=plt.Normalize(vmin=rho_vmin, vmax=rho_vmax)
     )
     sm_rho.set_array([])
-    fig.colorbar(sm_rho, ax=ax, label='ρ [kg/m³]', location='left', fraction=0.046, pad=0.18)
+    cb_rho = fig.colorbar(sm_rho, ax=ax, label='ρ [kg/m³]', location='left', fraction=0.046, pad=0.18)
+    cb_rho.formatter = matplotlib.ticker.FormatStrFormatter('%.1f')
+    cb_rho.update_ticks()
 
     ax.set_xlabel('Radio [cm]')
     ax.set_ylabel('Altura [cm]')
