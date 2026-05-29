@@ -55,7 +55,7 @@ generado por el modelo.
 | 5× DS18B20 (DS0–DS4) | Temperatura pared exterior (0–30 cm) | 1 |
 | 2× DS18B20 (DS_AMB1, DS_AMB2) | Temperatura ambiente (promediadas) | 1 |
 | 1× DS18B20 (DS_SUP) | Temperatura fluido tanque superior | 1 |
-| 1× DS18B20 (DS_INT) | Temperatura interior del fluido — encapsulado sumergible, posicionado en r=0, z=19.1 cm | 1 |
+| 1× DS18B20 (DS_INT) | Temperatura interior del fluido — encapsulado sumergible, posicionado en r=0, z=20.1 cm | 1 |
 | HC-SR04 | Nivel ultrasónico | 1 |
 | HX711 + celda de carga | Masa | 1 |
 | Display OLED 128×64 I2C | Visualización local | 1 |
@@ -239,7 +239,7 @@ Los resultados se escriben en InfluxDB como measurement `volumen_masa` cada 60 s
 
 ### Validación interior del modelo
 
-El sensor **DS_INT** (DS18B20 con encapsulado sumergible) está posicionado en el interior del fluido en r=0 (eje central), z=19.1 cm (mitad de la altura). Permite comparar la temperatura medida directamente en el interior con la estimada por el modelo en el nodo más cercano (`T[0, Nz//2]`, z≈20.1 cm).
+El sensor **DS_INT** (DS18B20 con encapsulado sumergible) está posicionado en el interior del fluido en r=0 (eje central), z=20.1 cm, coincidiendo exactamente con el nodo del modelo `T[0, Nz//2]` (z[10] con H=38.2 cm, Nz=20, dz=2.01 cm).
 
 En cada ciclo de 60 segundos el modelo escribe el measurement `validacion_interior` en InfluxDB con los campos:
 
