@@ -261,7 +261,7 @@ Con la corrección geométrica, la diferencia entre V_nivel y V_modelo se redujo
 El heatmap en `http://192.168.1.104:5000/heatmap` muestra:
 - **Mapa de color** `plasma` con la distribución T(r,z)
 - **Barra derecha** — escala de temperatura [°C]
-- **Barra izquierda** — escala de densidad ρ [kg/m³] (colormap `plasma_r`, colores coinciden con el mapa)
+- **Barra izquierda** — escala de densidad ρ [kg/m³] (colormap `plasma_r`)
 - **Punto cian** — posición del sensor DS_INT en el interior del fluido (r=0, z≈20 cm)
 - **Cuadro inferior** — valores de volumen, masa y validación interior (T int med / T int mod / Error int) en tiempo real
 
