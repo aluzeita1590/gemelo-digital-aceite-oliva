@@ -55,6 +55,7 @@ generado por el modelo.
 | 5× DS18B20 (DS0–DS4) | Temperatura pared exterior (0–30 cm) | 1 |
 | 2× DS18B20 (DS_AMB1, DS_AMB2) | Temperatura ambiente (promediadas) | 1 |
 | 1× DS18B20 (DS_SUP) | Temperatura fluido tanque superior | 1 |
+| 1× DS18B20 (DS_INT) | Temperatura interior del fluido — encapsulado sumergible, posicionado en r=0, z=19.1 cm | 1 |
 | HC-SR04 | Nivel ultrasónico | 1 |
 | HX711 + celda de carga | Masa | 1 |
 | Display OLED 128×64 I2C | Visualización local | 1 |
@@ -80,11 +81,15 @@ gemelo-digital-aceite-oliva/
 │
 ├── capa3_modelo/
 │   ├── modelo.py                      # Script en producción — RPi 5
+│   ├── calibrar_h_ext.py              # Calibración offline del coeficiente h_ext
+│   ├── resultados_calibracion/        # Gráficas generadas por calibrar_h_ext.py
 │   ├── tanque_modelo_2D_v2.py         # Referencia — modelo standalone v2.1
 │   └── tanque_modelo_2D_v3.py         # Referencia — modelo standalone v3.0
 │
 └── docker/
     ├── docker-compose.yml             # Orquestación (preparado, pendiente de despliegue)
+    ├── grafana/
+    │   └── telegraf-dashboard.json    # Dashboard Grafana importable — pipeline Telegraf
     ├── modelo/
     │   ├── Dockerfile                 # Imagen del modelo (usa capa3_modelo/modelo.py)
     │   └── requirements.txt
@@ -201,6 +206,8 @@ El tanque prototipo no es un cilindro perfecto — el radio interno crece lineal
 | 19.0 cm (mitad) | 27.8 cm | 0.139 m |
 | 38.0 cm (tapa) | 28.9 cm | 0.1445 m |
 
+La altura total medida es **38.2 cm** (`TANQUE_H_M = 0.382` en `config.py`), usada tanto por el modelo como por el HC-SR04 para calcular el nivel.
+
 El radio real `R(z)` se interpola linealmente entre estos puntos mediante `TANQUE_R_MEDICIONES_Z_M` y `TANQUE_R_MEDICIONES_R_M` en `config.py`.
 
 ### Cálculo de volumen y masa
@@ -230,6 +237,21 @@ Donde `t₀` es el instante de arranque del modelo y `ΔV` es el volumen acumula
 
 Los resultados se escriben en InfluxDB como measurement `volumen_masa` cada 60 segundos con campos `V_nivel_L`, `V_modelo_L`, `V_balance_L`, `M_hx711_kg` y `M_modelo_kg`. También se muestran en el heatmap como cuadro de texto en la esquina inferior izquierda.
 
+### Validación interior del modelo
+
+El sensor **DS_INT** (DS18B20 con encapsulado sumergible) está posicionado en el interior del fluido en r=0 (eje central), z=19.1 cm (mitad de la altura). Permite comparar la temperatura medida directamente en el interior con la estimada por el modelo en el nodo más cercano (`T[0, Nz//2]`, z≈20.1 cm).
+
+En cada ciclo de 60 segundos el modelo escribe el measurement `validacion_interior` en InfluxDB con los campos:
+
+| Campo | Descripción |
+|-------|-------------|
+| `T_medida_C` | Temperatura medida por DS_INT [°C] |
+| `T_modelo_C` | Temperatura estimada por el modelo en nodo (r=0, z≈20.1 cm) [°C] |
+| `error_C` | Diferencia T_modelo − T_medida [°C] |
+| `nodo_z_cm` | Posición axial del nodo de comparación [cm] |
+
+El heatmap muestra un **punto cian** en la posición del sensor y los valores T int med / T int mod / Error int en el cuadro inferior.
+
 Con la corrección geométrica, la diferencia entre V_nivel y V_modelo se redujo de 14% a ~7%.
 
 > **Nota de arranque:** al reiniciar el sistema, siempre detener/reiniciar primero `sensor.service` y esperar ~30 segundos antes de reiniciar `modelo.service`. Si ambos se reinician simultáneamente, el sensor resetea sus contadores de volumen a 0 pero InfluxDB aún conserva los valores anteriores — esto hace que V_balance calcule un delta incorrecto al arrancar.
@@ -240,7 +262,8 @@ El heatmap en `http://192.168.1.104:5000/heatmap` muestra:
 - **Mapa de color** `plasma` con la distribución T(r,z)
 - **Barra derecha** — escala de temperatura [°C]
 - **Barra izquierda** — escala de densidad ρ [kg/m³] (colormap `plasma_r`, colores coinciden con el mapa)
-- **Cuadro inferior** — valores de volumen y masa en tiempo real
+- **Punto cian** — posición del sensor DS_INT en el interior del fluido (r=0, z≈20 cm)
+- **Cuadro inferior** — valores de volumen, masa y validación interior (T int med / T int mod / Error int) en tiempo real
 
 ### Limitación conocida
 
@@ -363,6 +386,7 @@ modelo.py → InfluxDB (gemelo)   ← Telegraf NO tiene acceso
 - Configuración: `capa2_adquisicion/telegraf.conf` → copiado en `/etc/telegraf/telegraf.conf`
 - Corre como `telegraf.service` (systemd)
 - **Dashboard Grafana secundario** — datos del sensor + métricas del sistema RPi 5
+- Dashboard importable disponible en `docker/grafana/telegraf-dashboard.json` (Grafana → Dashboards → Import)
 
 ### ¿Por qué dos dashboards?
 
