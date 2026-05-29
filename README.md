@@ -21,7 +21,7 @@ generado por el modelo.
 ## Arquitectura del sistema
 
 **Capa 1 — Raspberry Pi `sensor` (192.168.1.106)**
-- 5× DS18B20 en pared exterior (DS0–DS4), 2× DS18B20 ambiente (DS_AMB1, DS_AMB2), 1× DS18B20 tanque superior (DS_SUP)
+- 5× DS18B20 en pared exterior (DS0–DS4), 2× DS18B20 ambiente (DS_AMB1, DS_AMB2), 1× DS18B20 tanque superior (DS_SUP), 1x DS18B20 interir (DS_INT)
 - HC-SR04 (nivel), HX711 + celda de carga (masa), Display OLED
 - Publica JSON por MQTT cada 10 segundos al broker en `gemelo5`
 - Corre como `sensor.service` (systemd)
