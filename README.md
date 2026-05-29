@@ -254,6 +254,45 @@ El heatmap muestra un **punto cian** en la posición del sensor y los valores T 
 
 Con la corrección geométrica, la diferencia entre V_nivel y V_modelo se redujo de 14% a ~7%.
 
+#### Métricas de error: MAE y RMSE
+
+Las métricas se calculan sobre la ventana temporal seleccionada en Grafana mediante queries Flux al measurement `validacion_interior`.
+
+**Definiciones:**
+
+$$\text{MAE} = \frac{1}{N} \sum_{k=1}^{N} |e_k|$$
+
+$$\text{RMSE} = \sqrt{\frac{1}{N} \sum_{k=1}^{N} e_k^2}$$
+
+donde $e_k = T_{\text{modelo},k} - T_{\text{medida},k}$ es el error en el instante $k$ y $N$ es el número de muestras en la ventana. El RMSE penaliza más los errores grandes (por el cuadrado), por lo que RMSE ≥ MAE siempre. La hipótesis de validación de la tesis establece RMSE < 1 °C.
+
+**Query MAE (Flux):**
+```flux
+import "math"
+from(bucket: "gemelo")
+  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+  |> filter(fn: (r) => r._measurement == "validacion_interior")
+  |> filter(fn: (r) => r._field == "error_C")
+  |> map(fn: (r) => ({r with _value: math.abs(x: r._value)}))
+  |> mean()
+  |> yield(name: "MAE")
+```
+
+**Query RMSE (Flux):**
+```flux
+import "math"
+from(bucket: "gemelo")
+  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+  |> filter(fn: (r) => r._measurement == "validacion_interior")
+  |> filter(fn: (r) => r._field == "error_C")
+  |> map(fn: (r) => ({r with _value: r._value * r._value}))
+  |> mean()
+  |> map(fn: (r) => ({r with _value: math.sqrt(x: r._value)}))
+  |> yield(name: "RMSE")
+```
+
+Estos queries están implementados en el dashboard **Gemelo Digital — Validación Interior** (`docker/grafana/validacion-interior-dashboard.json`), que se puede importar en Grafana desde Dashboards → Import → Upload JSON file.
+
 > **Nota de arranque:** al reiniciar el sistema, siempre detener/reiniciar primero `sensor.service` y esperar ~30 segundos antes de reiniciar `modelo.service`. Si ambos se reinician simultáneamente, el sensor resetea sus contadores de volumen a 0 pero InfluxDB aún conserva los valores anteriores — esto hace que V_balance calcule un delta incorrecto al arrancar.
 
 ### Visualización del heatmap
