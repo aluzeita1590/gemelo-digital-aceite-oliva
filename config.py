@@ -27,7 +27,7 @@ INFLUX_BUCKET = "gemelo"
 
 # ── Geometría del tanque ──────────────────────────────────────
 TANQUE_R_M = 0.141    # radio nominal [m] — usado por el solver térmico
-TANQUE_H_M = 0.382    # altura [m]
+TANQUE_H_M = 0.372    # altura máxima del fluido [m] = distancia cara sensor → fondo
 
 # Geometría real medida (tanque es un frustum cónico, no cilindro perfecto)
 # Mediciones: altura [m] → radio interno [m]
@@ -51,7 +51,7 @@ PIN_FLUJO_SALIDA  = 22    # GPIO BCM — pin físico 15 — YF-S021 salida tanqu
 FLUJO_PULSOS_POR_LITRO_ENTRADA = 478   # YF-S021 entrada — calibrado experimentalmente
 FLUJO_PULSOS_POR_LITRO_SALIDA  = 331   # YF-S021 salida  — ajustado por balance (con flexible)
 
-ALTURA_CM    = 37.0       # distancia cara sensor → fondo tanque vacío [cm] (medido 2026-06-04)
+ALTURA_CM    = 37.2       # distancia cara sensor → fondo tanque vacío [cm] (medido 2026-06-05)
 
 # Filtro eco de pared (HC-SR04 sobre aceite de oliva)
 # Con aceite cerca del sensor (<~12 cm), la superficie lisa refleja el pulso
