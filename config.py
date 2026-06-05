@@ -51,7 +51,15 @@ PIN_FLUJO_SALIDA  = 22    # GPIO BCM — pin físico 15 — YF-S021 salida tanqu
 FLUJO_PULSOS_POR_LITRO_ENTRADA = 478   # YF-S021 entrada — calibrado experimentalmente
 FLUJO_PULSOS_POR_LITRO_SALIDA  = 331   # YF-S021 salida  — ajustado por balance (con flexible)
 
-ALTURA_CM    = 38.2       # altura máxima del tanque [cm] para HC-SR04
+ALTURA_CM    = 37.0       # distancia cara sensor → fondo tanque vacío [cm] (medido 2026-06-04)
+
+# Filtro eco de pared (HC-SR04 sobre aceite de oliva)
+# Con aceite cerca del sensor (<~12 cm), la superficie lisa refleja el pulso
+# lateralmente y el sensor capta el eco de la pared a ~2×R ≈ 29 cm.
+WALL_ECHO_MIN_CM  = 24.0  # límite inferior zona eco falso [cm]
+WALL_ECHO_MAX_CM  = 34.0  # límite superior zona eco falso [cm]
+NIVEL_ALTO_M      = 0.18  # nivel mínimo desde el que el eco de pared puede ocurrir [m]
+NIVEL_MAX_RECHAZOS = 6    # máximo de lecturas consecutivas rechazadas antes de aceptar
 HX711_FACTOR = 23850      # unidades por kg — calibración celda de carga
 TARA_FILE    = "/home/sebar/sensor/tara.txt"
 
