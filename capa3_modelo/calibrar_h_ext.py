@@ -32,7 +32,7 @@ except ImportError:
 # ── Parámetros del experimento — AJUSTAR antes de correr ──────────
 T_INICIO = "2026-05-01T10:00:00Z"   # inicio del experimento (ISO 8601 UTC)
 T_FIN    = "2026-05-01T14:00:00Z"   # fin del experimento
-FLUIDO   = "aceite"                  # "aceite" | "agua"
+FLUIDO   = "agua"                    # "aceite" | "agua"
 
 # Valores de h_ext a evaluar [W/(m²·°C)]
 H_EXT_VALORES = [2.0, 3.0, 5.0, 8.0, 10.0, 15.0]

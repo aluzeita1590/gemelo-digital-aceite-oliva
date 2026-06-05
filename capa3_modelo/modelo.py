@@ -256,18 +256,17 @@ def leer_t_amb():
 
 def leer_nivel():
     """Lee el nivel del fluido desde InfluxDB (HC-SR04) en metros."""
-    for rango in ("-2m", "-10m"):
-        flux = f'''
-        from(bucket: "{INFLUX_BUCKET}")
-          |> range(start: {rango})
-          |> filter(fn: (r) => r._measurement == "nivel")
-          |> filter(fn: (r) => r._field == "valor")
-          |> last()
-        '''
-        result = query_api.query(flux)
-        for table in result:
-            for record in table.records:
-                return float(record.get_value())
+    flux = f'''
+    from(bucket: "{INFLUX_BUCKET}")
+      |> range(start: -2m)
+      |> filter(fn: (r) => r._measurement == "nivel")
+      |> filter(fn: (r) => r._field == "valor")
+      |> last()
+    '''
+    result = query_api.query(flux)
+    for table in result:
+        for record in table.records:
+            return float(record.get_value())
     return None
 
 def leer_masa():

@@ -28,16 +28,8 @@ PIN_FLUJO_ENTRADA = config.PIN_FLUJO_ENTRADA
 PIN_FLUJO_SALIDA  = config.PIN_FLUJO_SALIDA
 PULSOS_POR_LITRO_ENTRADA = config.FLUJO_PULSOS_POR_LITRO_ENTRADA
 PULSOS_POR_LITRO_SALIDA  = config.FLUJO_PULSOS_POR_LITRO_SALIDA
-ALTURA_CM          = config.ALTURA_CM
-WALL_ECHO_MIN_CM   = config.WALL_ECHO_MIN_CM
-WALL_ECHO_MAX_CM   = config.WALL_ECHO_MAX_CM
-NIVEL_ALTO_M       = config.NIVEL_ALTO_M
-NIVEL_MAX_RECHAZOS = config.NIVEL_MAX_RECHAZOS
+ALTURA_CM         = config.ALTURA_CM
 DURACION_LLENADO_S = config.BOMBA_DURACION_LLENADO_MIN * 60
-
-# Estado del filtro de eco de pared (persistente entre llamadas)
-_nivel_previo          = -1.0
-_rechazos_consecutivos = 0
 
 # ── Sensores ──────────────────────────────────────────
 SENSOR_IDS     = config.DS_PARED_IDS
@@ -260,7 +252,6 @@ def leer_temperatura_interior():
     return None
 
 def leer_nivel():
-    global _nivel_previo, _rechazos_consecutivos
     lecturas = []
     for _ in range(5):
         GPIO.output(PIN_TRIG, False)
@@ -280,22 +271,8 @@ def leer_nivel():
             lecturas.append(d)
         time.sleep(0.06)
     if not lecturas:
-        if _nivel_previo >= 0:
-            print(f"[nivel] sin ecos válidos, usando previo={_nivel_previo} m")
-            return _nivel_previo
         return -1.0
-    d_prom = sum(lecturas) / len(lecturas)
-    # Rechazar eco de pared: d en zona de reflexión lateral Y nivel previo era alto
-    if (WALL_ECHO_MIN_CM < d_prom < WALL_ECHO_MAX_CM
-            and _nivel_previo > NIVEL_ALTO_M
-            and _rechazos_consecutivos < NIVEL_MAX_RECHAZOS):
-        _rechazos_consecutivos += 1
-        print(f"[nivel] eco de pared detectado (d={d_prom:.1f} cm), usando previo={_nivel_previo} m")
-        return _nivel_previo
-    _rechazos_consecutivos = 0
-    nivel = round(max(0, ALTURA_CM - d_prom) / 100, 4)
-    _nivel_previo = nivel
-    return nivel
+    return round(max(0, ALTURA_CM - sum(lecturas)/len(lecturas)) / 100, 4)
 
 def leer_masa():
     try:
