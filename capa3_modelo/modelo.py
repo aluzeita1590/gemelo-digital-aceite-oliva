@@ -179,7 +179,7 @@ print("Servidor de imagen: http://192.168.1.104:5000/heatmap")
 
 # ── Cliente MQTT para comandos ─────────────────────────
 def on_modelo_message(client, userdata, msg):
-    global T
+    global T, T_libre
     comando = msg.payload.decode().strip()
     print(f"Comando recibido: {comando}")
     if comando.startswith("fluido/"):
@@ -188,16 +188,19 @@ def on_modelo_message(client, userdata, msg):
     elif comando == "reset":
         print("Reiniciando condición inicial con sensores de pared...")
         T = condicion_inicial_dinamica()
+        T_libre = T.copy()
         escribir_condicion_inicial(T, "sensores")
     elif comando == "inicio/sup":
         t_sup = leer_t_sup()
         if t_sup is not None:
             print(f"Iniciando con T_sup={t_sup:.2f}°C (tanque superior)")
             T = np.ones((Nr, Nz)) * t_sup
+            T_libre = T.copy()
             escribir_condicion_inicial(T, "t_sup")
         else:
             print("DS_SUP no disponible — usando sensores de pared")
             T = condicion_inicial_dinamica()
+            T_libre = T.copy()
             escribir_condicion_inicial(T, "sensores")
 
 modelo_mqtt = mqtt_lib.Client(mqtt_lib.CallbackAPIVersion.VERSION2)
@@ -457,8 +460,24 @@ def escribir_modelo(T):
             points.append(p)
     write.write(bucket=INFLUX_BUCKET, record=points)
 
+def escribir_modelo_libre(T):
+    ts = datetime.now(timezone.utc)
+    points = []
+    for i in range(Nr):
+        for j in range(Nz):
+            p = (Point("temperatura_modelo_libre")
+                 .tag("nodo_r", i)
+                 .tag("nodo_z", j)
+                 .tag("fluido", FLUIDO_ACTIVO)
+                 .field("T", float(T[i, j]))
+                 .field("r_cm", float(r[i] * 100))
+                 .field("z_cm", float(z[j] * 100))
+                 .time(ts))
+            points.append(p)
+    write.write(bucket=INFLUX_BUCKET, record=points)
+
 def generar_imagen(T, V_niv_L=None, V_mod_L=None, masa_hx=None, M_mod=None, V_bal_L=None,
-                   t_int_med=None, t_int_mod=None):
+                   t_int_med=None, t_int_mod=None, t_int_libre=None):
     global imagen_actual
     fig, ax = plt.subplots(figsize=(6, 7))
     r_full = np.concatenate([-r[::-1], r[1:]]) * 100
@@ -512,12 +531,14 @@ def generar_imagen(T, V_niv_L=None, V_mod_L=None, masa_hx=None, M_mod=None, V_ba
                 f'M modelo : {M_mod:.3f} kg',
             ]
     if t_int_med is not None and t_int_mod is not None:
-        error = t_int_mod - t_int_med
+        error_asim  = t_int_mod   - t_int_med
         lineas += [
-            f'T int med : {t_int_med:.2f} °C',
-            f'T int mod : {t_int_mod:.2f} °C',
-            f'Error int : {error:+.2f} °C',
+            f'T int med   : {t_int_med:.2f} °C',
+            f'T int asim  : {t_int_mod:.2f} °C  (err {error_asim:+.2f})',
         ]
+        if t_int_libre is not None:
+            error_libre = t_int_libre - t_int_med
+            lineas.append(f'T int libre : {t_int_libre:.2f} °C  (err {error_libre:+.2f})')
     if lineas:
         ax.text(0.02, 0.02, '\n'.join(lineas), transform=ax.transAxes,
                 fontsize=7, verticalalignment='bottom',
@@ -547,6 +568,10 @@ else:
     T = condicion_inicial_dinamica()
     escribir_condicion_inicial(T, "sensores")
 
+# Modelo libre: misma condición inicial, sin asimilación de datos
+T_libre = T.copy()
+print("Modelo libre inicializado (α_K=0, solo física)")
+
 
 # ── Loop principal ─────────────────────────────────────
 print(f"Modelo 2D iniciado. Fluido: {FLUIDO_ACTIVO}. Actualizando cada {INTERVALO_S}s\n")
@@ -571,7 +596,8 @@ try:
 
         pasos = max(1, int(INTERVALO_S / dt))
         for _ in range(pasos):
-            T = paso_tiempo(T)
+            T       = paso_tiempo(T)
+            T_libre = paso_tiempo(T_libre)
 
         if temps:
             T = actualizar_con_sensores(T, temps)
@@ -608,28 +634,35 @@ try:
                     p = p.field("V_balance_L", round(V_bal_L, 3))
                 write.write(bucket=INFLUX_BUCKET, record=p)
 
-        # Validación interior: DS_INT vs T[0, _INT_J]
-        t_int_med = leer_t_int()
-        t_int_mod = float(T[0, _INT_J])
+        # Validación interior: DS_INT vs modelo con asimilación y libre
+        t_int_med   = leer_t_int()
+        t_int_mod   = float(T[0, _INT_J])
+        t_int_libre = float(T_libre[0, _INT_J])
         if t_int_med is not None and ciclo % 6 == 0:
-            error_int = t_int_mod - t_int_med
+            error_asim  = t_int_mod   - t_int_med
+            error_libre = t_int_libre - t_int_med
             ts_now = datetime.now(timezone.utc)
             p_val = (Point("validacion_interior")
-                     .field("T_medida_C",  round(t_int_med, 3))
-                     .field("T_modelo_C",  round(t_int_mod, 3))
-                     .field("error_C",     round(error_int, 3))
-                     .field("nodo_z_cm",   round(float(z[_INT_J] * 100), 1))
+                     .field("T_medida_C",     round(t_int_med,   3))
+                     .field("T_modelo_C",     round(t_int_mod,   3))
+                     .field("error_C",        round(error_asim,  3))
+                     .field("T_libre_C",      round(t_int_libre, 3))
+                     .field("error_libre_C",  round(error_libre, 3))
+                     .field("nodo_z_cm",      round(float(z[_INT_J] * 100), 1))
                      .time(ts_now))
             write.write(bucket=INFLUX_BUCKET, record=p_val)
-            print(f"  DS_INT: med={t_int_med:.2f}°C | mod={t_int_mod:.2f}°C | "
-                  f"err={error_int:+.2f}°C")
+            print(f"  DS_INT: med={t_int_med:.2f}°C | "
+                  f"asim={t_int_mod:.2f}°C (err {error_asim:+.2f}) | "
+                  f"libre={t_int_libre:.2f}°C (err {error_libre:+.2f})")
 
         generar_imagen(T, V_niv_L, V_mod_L, masa_hx, M_mod, V_bal_L,
                        t_int_med=t_int_med,
-                       t_int_mod=t_int_mod if t_int_med is not None else None)
+                       t_int_mod=t_int_mod   if t_int_med is not None else None,
+                       t_int_libre=t_int_libre if t_int_med is not None else None)
 
         if ciclo % 6 == 0:   # escribir en InfluxDB cada 60 segundos
             escribir_modelo(T)
+            escribir_modelo_libre(T_libre)
 
         T_prom = np.mean(T)
         T_max  = np.max(T)
