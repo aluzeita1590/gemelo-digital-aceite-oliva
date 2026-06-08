@@ -135,6 +135,7 @@ query_api = client.query_api()
 # ── Servidor Flask ────────────────────────────────────
 app = Flask(__name__)
 imagen_actual = None
+imagen_libre  = None
 
 def _cors(response):
     response.headers["Access-Control-Allow-Origin"] = "*"
@@ -146,6 +147,13 @@ def heatmap():
     if imagen_actual is None:
         return "Sin datos aún", 503
     return send_file(io.BytesIO(imagen_actual), mimetype='image/png')
+
+@app.route('/heatmap_libre')
+def heatmap_libre():
+    global imagen_libre
+    if imagen_libre is None:
+        return "Sin datos aún", 503
+    return send_file(io.BytesIO(imagen_libre), mimetype='image/png')
 
 @app.route('/bomba/<comando>')
 def bomba_cmd(comando):
@@ -476,6 +484,27 @@ def escribir_modelo_libre(T):
             points.append(p)
     write.write(bucket=INFLUX_BUCKET, record=points)
 
+def generar_imagen_libre(T):
+    global imagen_libre
+    fig, ax = plt.subplots(figsize=(6, 7))
+    r_full = np.concatenate([-r[::-1], r[1:]]) * 100
+    T_full = np.concatenate([T[::-1, :], T[1:, :]], axis=0)
+    vmin = np.min(T)
+    vmax = np.max(T)
+    im = ax.contourf(r_full, z * 100, T_full.T, levels=20,
+                     cmap='plasma', vmin=vmin, vmax=vmax)
+    fig.colorbar(im, ax=ax, label='T [°C]', location='right', fraction=0.046, pad=0.04)
+    ax.set_xlabel('Radio [cm]')
+    ax.set_ylabel('Altura [cm]')
+    ax.set_title(f'T(r,z) — Modelo libre [{FLUIDO_ACTIVO}] (sin asimilación)\n'
+                 f'T_prom={np.mean(T):.2f}°C  ΔT={np.max(T)-np.min(T):.2f}°C')
+    ax.axvline(0, color='white', linewidth=0.8, linestyle='--', alpha=0.6)
+    buf = io.BytesIO()
+    plt.savefig(buf, format='png', dpi=100, bbox_inches='tight')
+    plt.close()
+    buf.seek(0)
+    imagen_libre = buf.read()
+
 def generar_imagen(T, V_niv_L=None, V_mod_L=None, masa_hx=None, M_mod=None, V_bal_L=None,
                    t_int_med=None, t_int_mod=None, t_int_libre=None):
     global imagen_actual
@@ -659,6 +688,7 @@ try:
                        t_int_med=t_int_med,
                        t_int_mod=t_int_mod   if t_int_med is not None else None,
                        t_int_libre=t_int_libre if t_int_med is not None else None)
+        generar_imagen_libre(T_libre)
 
         if ciclo % 6 == 0:   # escribir en InfluxDB cada 60 segundos
             escribir_modelo(T)
