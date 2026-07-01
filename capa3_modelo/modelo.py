@@ -111,8 +111,9 @@ def R_real(z_val):
     return float(_R_real_interp(z_val))
 
 # ── Parámetros del modelo ──────────────────────────────
-h_ext   = config.MODELO_H_EXT
-alpha_K = config.MODELO_ALPHA_K
+h_ext        = config.MODELO_H_EXT
+alpha_K      = config.MODELO_ALPHA_K        # ganancia nominal
+ALPHA_K_ALTA = config.MODELO_ALPHA_K_ALTA   # ganancia alta para comparación
 T_amb   = 25.0   # temperatura ambiente [°C] — se actualiza dinámicamente
 
 # Coeficiente global U [W/(m²·°C)]: 1/U = e_pared/k_pared + 1/h_ext
@@ -136,6 +137,7 @@ query_api = client.query_api()
 app = Flask(__name__)
 imagen_actual = None
 imagen_libre  = None
+imagen_alta   = None
 
 def _cors(response):
     response.headers["Access-Control-Allow-Origin"] = "*"
@@ -154,6 +156,13 @@ def heatmap_libre():
     if imagen_libre is None:
         return "Sin datos aún", 503
     return send_file(io.BytesIO(imagen_libre), mimetype='image/png')
+
+@app.route('/heatmap_alta')
+def heatmap_alta():
+    global imagen_alta
+    if imagen_alta is None:
+        return "Sin datos aún", 503
+    return send_file(io.BytesIO(imagen_alta), mimetype='image/png')
 
 @app.route('/bomba/<comando>')
 def bomba_cmd(comando):
@@ -211,12 +220,18 @@ def on_modelo_message(client, userdata, msg):
             T_libre = T.copy()
             escribir_condicion_inicial(T, "sensores")
 
+def on_modelo_connect(client, _userdata, _connect_flags, reason_code, _properties):
+    if reason_code == 0:
+        client.subscribe(config.MQTT_TOPIC_CMD_MODELO)
+        print(f"Modelo MQTT conectado. Escuchando comandos en topic '{config.MQTT_TOPIC_CMD_MODELO}'", flush=True)
+    else:
+        print(f"[ERROR] Modelo MQTT conexión rechazada, código: {reason_code}", flush=True)
+
 modelo_mqtt = mqtt_lib.Client(mqtt_lib.CallbackAPIVersion.VERSION2)
+modelo_mqtt.on_connect = on_modelo_connect
 modelo_mqtt.on_message = on_modelo_message
 modelo_mqtt.connect(MQTT_BROKER, MQTT_PORT)
-modelo_mqtt.subscribe(config.MQTT_TOPIC_CMD_MODELO)
 modelo_mqtt.loop_start()
-print("Escuchando comandos en topic 'modelo/cmd'")
 
 # ── Funciones ──────────────────────────────────────────
 # Orden físico de los sensores (DS0=base, DS4=tope a 30cm)
@@ -403,9 +418,11 @@ def condicion_inicial_dinamica():
     print(f"  T(DS0={temps[0]:.2f}) → T(DS4={temps[-1]:.2f}°C)")
     return T_init
 
-def actualizar_con_sensores(T, temps):
+def actualizar_con_sensores(T, temps, alpha=None):
     if not temps:
         return T
+    if alpha is None:
+        alpha = alpha_K
     interp = interp1d(Z_SENSORES_M, temps,
                       kind='linear',
                       fill_value='extrapolate',
@@ -413,7 +430,7 @@ def actualizar_con_sensores(T, temps):
     for j in range(Nz):
         T_interp = float(interp(z[j]))
         T_interp = np.clip(T_interp, min(temps) - 1.0, max(temps) + 1.0)
-        T[-1, j] = T[-1, j] + alpha_K * (T_interp - T[-1, j])
+        T[-1, j] = T[-1, j] + alpha * (T_interp - T[-1, j])
     return T
 
 def paso_tiempo(T):
@@ -484,6 +501,22 @@ def escribir_modelo_libre(T):
             points.append(p)
     write.write(bucket=INFLUX_BUCKET, record=points)
 
+def escribir_modelo_alta(T):
+    ts = datetime.now(timezone.utc)
+    points = []
+    for i in range(Nr):
+        for j in range(Nz):
+            p = (Point("temperatura_modelo_alta")
+                 .tag("nodo_r", i)
+                 .tag("nodo_z", j)
+                 .tag("fluido", FLUIDO_ACTIVO)
+                 .field("T", float(T[i, j]))
+                 .field("r_cm", float(r[i] * 100))
+                 .field("z_cm", float(z[j] * 100))
+                 .time(ts))
+            points.append(p)
+    write.write(bucket=INFLUX_BUCKET, record=points)
+
 def generar_imagen_libre(T):
     global imagen_libre
     fig, ax = plt.subplots(figsize=(6, 7))
@@ -504,6 +537,27 @@ def generar_imagen_libre(T):
     plt.close()
     buf.seek(0)
     imagen_libre = buf.read()
+
+def generar_imagen_alta(T):
+    global imagen_alta
+    fig, ax = plt.subplots(figsize=(6, 7))
+    r_full = np.concatenate([-r[::-1], r[1:]]) * 100
+    T_full = np.concatenate([T[::-1, :], T[1:, :]], axis=0)
+    vmin = np.min(T)
+    vmax = np.max(T)
+    im = ax.contourf(r_full, z * 100, T_full.T, levels=20,
+                     cmap='plasma', vmin=vmin, vmax=vmax)
+    fig.colorbar(im, ax=ax, label='T [°C]', location='right', fraction=0.046, pad=0.04)
+    ax.set_xlabel('Radio [cm]')
+    ax.set_ylabel('Altura [cm]')
+    ax.set_title(f'T(r,z) — Modelo alta asimilación [{FLUIDO_ACTIVO}] (α={ALPHA_K_ALTA})\n'
+                 f'T_prom={np.mean(T):.2f}°C  ΔT={np.max(T)-np.min(T):.2f}°C')
+    ax.axvline(0, color='white', linewidth=0.8, linestyle='--', alpha=0.6)
+    buf = io.BytesIO()
+    plt.savefig(buf, format='png', dpi=100, bbox_inches='tight')
+    plt.close()
+    buf.seek(0)
+    imagen_alta = buf.read()
 
 def generar_imagen(T, V_niv_L=None, V_mod_L=None, masa_hx=None, M_mod=None, V_bal_L=None,
                    t_int_med=None, t_int_mod=None, t_int_libre=None):
@@ -601,6 +655,10 @@ else:
 T_libre = T.copy()
 print("Modelo libre inicializado (α_K=0, solo física)")
 
+# Modelo alta asimilación: misma condición inicial, α_K=0.80
+T_alta = T.copy()
+print(f"Modelo alta asimilación inicializado (α_K={ALPHA_K_ALTA})")
+
 
 # ── Loop principal ─────────────────────────────────────
 print(f"Modelo 2D iniciado. Fluido: {FLUIDO_ACTIVO}. Actualizando cada {INTERVALO_S}s\n")
@@ -627,9 +685,11 @@ try:
         for _ in range(pasos):
             T       = paso_tiempo(T)
             T_libre = paso_tiempo(T_libre)
+            T_alta  = paso_tiempo(T_alta)
 
         if temps:
-            T = actualizar_con_sensores(T, temps)
+            T       = actualizar_con_sensores(T,      temps)
+            T_alta  = actualizar_con_sensores(T_alta, temps, alpha=ALPHA_K_ALTA)
             print(f"Sensores: {[round(t,2) for t in temps]}")
 
         # Volumen y masa
@@ -663,18 +723,22 @@ try:
                     p = p.field("V_balance_L", round(V_bal_L, 3))
                 write.write(bucket=INFLUX_BUCKET, record=p)
 
-        # Validación interior: DS_INT vs modelo con asimilación y libre
+        # Validación interior: DS_INT vs modelo con asimilación, alta asimilación y libre
         t_int_med   = leer_t_int()
         t_int_mod   = float(T[0, _INT_J])
+        t_int_alta  = float(T_alta[0, _INT_J])
         t_int_libre = float(T_libre[0, _INT_J])
         if t_int_med is not None and ciclo % 6 == 0:
             error_asim  = t_int_mod   - t_int_med
+            error_alta  = t_int_alta  - t_int_med
             error_libre = t_int_libre - t_int_med
             ts_now = datetime.now(timezone.utc)
             p_val = (Point("validacion_interior")
                      .field("T_medida_C",     round(t_int_med,   3))
                      .field("T_modelo_C",     round(t_int_mod,   3))
                      .field("error_C",        round(error_asim,  3))
+                     .field("T_alta_C",       round(t_int_alta,  3))
+                     .field("error_alta_C",   round(error_alta,  3))
                      .field("T_libre_C",      round(t_int_libre, 3))
                      .field("error_libre_C",  round(error_libre, 3))
                      .field("nodo_z_cm",      round(float(z[_INT_J] * 100), 1))
@@ -682,6 +746,7 @@ try:
             write.write(bucket=INFLUX_BUCKET, record=p_val)
             print(f"  DS_INT: med={t_int_med:.2f}°C | "
                   f"asim={t_int_mod:.2f}°C (err {error_asim:+.2f}) | "
+                  f"alta={t_int_alta:.2f}°C (err {error_alta:+.2f}) | "
                   f"libre={t_int_libre:.2f}°C (err {error_libre:+.2f})")
 
         generar_imagen(T, V_niv_L, V_mod_L, masa_hx, M_mod, V_bal_L,
@@ -689,10 +754,12 @@ try:
                        t_int_mod=t_int_mod   if t_int_med is not None else None,
                        t_int_libre=t_int_libre if t_int_med is not None else None)
         generar_imagen_libre(T_libre)
+        generar_imagen_alta(T_alta)
 
         if ciclo % 6 == 0:   # escribir en InfluxDB cada 60 segundos
             escribir_modelo(T)
             escribir_modelo_libre(T_libre)
+            escribir_modelo_alta(T_alta)
 
         T_prom = np.mean(T)
         T_max  = np.max(T)
