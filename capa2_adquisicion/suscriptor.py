@@ -136,15 +136,21 @@ def on_message(client, userdata, msg):
               f"T={temps} nivel={datos.get('nivel_m')} "
               f"masa={datos.get('masa_kg')} "
               f"flujo_ent={datos.get('flujo_entrada_lmin')} "
-              f"flujo_sal={datos.get('flujo_salida_lmin')}")
+              f"flujo_sal={datos.get('flujo_salida_lmin')}", flush=True)
 
     except Exception as e:
-        print(f"[ERROR] {e}")
+        print(f"[ERROR] {e}", flush=True)
 
 # ── Iniciar MQTT ──────────────────────────────────────
+def on_connect(client, userdata, connect_flags, reason_code, properties):
+    if reason_code == 0:
+        client.subscribe(MQTT_TOPIC)
+        print(f"Conectado al broker. Escuchando topic '{MQTT_TOPIC}'...", flush=True)
+    else:
+        print(f"[ERROR] Conexión rechazada, código: {reason_code}", flush=True)
+
 client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+client.on_connect = on_connect
 client.on_message = on_message
 client.connect(MQTT_BROKER, MQTT_PORT)
-client.subscribe(MQTT_TOPIC)
-print(f"Escuchando topic '{MQTT_TOPIC}'...")
 client.loop_forever()

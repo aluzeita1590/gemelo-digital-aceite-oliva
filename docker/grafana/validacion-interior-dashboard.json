@@ -74,6 +74,14 @@
               {"id": "color", "value": {"fixedColor": "orange", "mode": "fixed"}},
               {"id": "displayName", "value": "T modelo T[0,10] [°C]"}
             ]
+          },
+          {
+            "matcher": {"id": "byName", "options": "T_libre_C"},
+            "properties": [
+              {"id": "color", "value": {"fixedColor": "yellow", "mode": "fixed"}},
+              {"id": "displayName", "value": "T modelo libre T[0,10] [°C]"},
+              {"id": "custom.lineStyle", "value": {"fill": "dash", "dash": [6, 3]}}
+            ]
           }
         ]
       },
@@ -90,7 +98,7 @@
       "targets": [
         {
           "datasource": {"type": "influxdb", "uid": "${DS_INFLUXDB}"},
-          "query": "from(bucket: \"gemelo\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"validacion_interior\")\n  |> filter(fn: (r) => r._field == \"T_medida_C\" or r._field == \"T_modelo_C\")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> yield(name: \"mean\")",
+          "query": "from(bucket: \"gemelo\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"validacion_interior\")\n  |> filter(fn: (r) => r._field == \"T_medida_C\" or r._field == \"T_modelo_C\" or r._field == \"T_libre_C\")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> yield(name: \"mean\")",
           "refId": "A"
         }
       ],
@@ -266,7 +274,7 @@
       "collapsed": false,
       "gridPos": {"h": 1, "w": 24, "x": 0, "y": 16},
       "id": 7,
-      "title": "Métricas de validación — ventana temporal seleccionada",
+      "title": "Métricas — Modelo con asimilación — ventana temporal seleccionada",
       "type": "row"
     },
 
@@ -382,6 +390,92 @@
         }
       ],
       "title": "N mediciones",
+      "type": "stat"
+    },
+
+    {
+      "collapsed": false,
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 22},
+      "id": 11,
+      "title": "Métricas — Modelo libre (sin asimilación) — ventana temporal seleccionada",
+      "type": "row"
+    },
+
+    {
+      "datasource": {"type": "influxdb", "uid": "${DS_INFLUXDB}"},
+      "description": "MAE = promedio de |error| del modelo libre (sin asimilación de datos) en la ventana temporal.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "celsius",
+          "decimals": 3,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green",  "value": null},
+              {"color": "yellow", "value": 0.5},
+              {"color": "red",    "value": 1}
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 5, "w": 8, "x": 0, "y": 23},
+      "id": 12,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {"type": "influxdb", "uid": "${DS_INFLUXDB}"},
+          "query": "import \"math\"\nfrom(bucket: \"gemelo\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"validacion_interior\")\n  |> filter(fn: (r) => r._field == \"error_libre_C\")\n  |> map(fn: (r) => ({r with _value: math.abs(x: r._value)}))\n  |> mean()\n  |> yield(name: \"MAE libre\")",
+          "refId": "A"
+        }
+      ],
+      "title": "MAE libre [°C]",
+      "type": "stat"
+    },
+
+    {
+      "datasource": {"type": "influxdb", "uid": "${DS_INFLUXDB}"},
+      "description": "RMSE del modelo libre (sin asimilación de datos) en la ventana temporal. Hipótesis comparativa: RMSE libre > RMSE con asimilación.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "celsius",
+          "decimals": 3,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green",  "value": null},
+              {"color": "yellow", "value": 0.5},
+              {"color": "red",    "value": 1}
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 5, "w": 8, "x": 8, "y": 23},
+      "id": 13,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {"type": "influxdb", "uid": "${DS_INFLUXDB}"},
+          "query": "import \"math\"\nfrom(bucket: \"gemelo\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"validacion_interior\")\n  |> filter(fn: (r) => r._field == \"error_libre_C\")\n  |> map(fn: (r) => ({r with _value: r._value * r._value}))\n  |> mean()\n  |> map(fn: (r) => ({r with _value: math.sqrt(x: r._value)}))\n  |> yield(name: \"RMSE libre\")",
+          "refId": "A"
+        }
+      ],
+      "title": "RMSE libre [°C]",
       "type": "stat"
     }
   ],
