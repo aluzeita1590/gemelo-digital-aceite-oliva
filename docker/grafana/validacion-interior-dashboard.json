@@ -90,6 +90,14 @@
               {"id": "displayName", "value": "T modelo alta α=0.80 T[0,10] [°C]"},
               {"id": "custom.lineStyle", "value": {"fill": "dash", "dash": [2, 4]}}
             ]
+          },
+          {
+            "matcher": {"id": "byName", "options": "T_baja_C"},
+            "properties": [
+              {"id": "color", "value": {"fixedColor": "purple", "mode": "fixed"}},
+              {"id": "displayName", "value": "T modelo baja α=0.20 T[0,10] [°C]"},
+              {"id": "custom.lineStyle", "value": {"fill": "dash", "dash": [8, 3]}}
+            ]
           }
         ]
       },
@@ -106,7 +114,7 @@
       "targets": [
         {
           "datasource": {"type": "influxdb", "uid": "${DS_INFLUXDB}"},
-          "query": "from(bucket: \"gemelo\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"validacion_interior\")\n  |> filter(fn: (r) => r._field == \"T_medida_C\" or r._field == \"T_modelo_C\" or r._field == \"T_libre_C\" or r._field == \"T_alta_C\")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> yield(name: \"mean\")",
+          "query": "from(bucket: \"gemelo\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"validacion_interior\")\n  |> filter(fn: (r) => r._field == \"T_medida_C\" or r._field == \"T_modelo_C\" or r._field == \"T_libre_C\" or r._field == \"T_alta_C\" or r._field == \"T_baja_C\")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> yield(name: \"mean\")",
           "refId": "A"
         }
       ],
@@ -156,6 +164,14 @@
               {"id": "displayName", "value": "Error alta (α=0.80)"},
               {"id": "custom.lineStyle", "value": {"fill": "dash", "dash": [4, 4]}}
             ]
+          },
+          {
+            "matcher": {"id": "byName", "options": "error_baja_C"},
+            "properties": [
+              {"id": "color", "value": {"fixedColor": "purple", "mode": "fixed"}},
+              {"id": "displayName", "value": "Error baja (α=0.20)"},
+              {"id": "custom.lineStyle", "value": {"fill": "dash", "dash": [8, 3]}}
+            ]
           }
         ]
       },
@@ -172,7 +188,7 @@
       "targets": [
         {
           "datasource": {"type": "influxdb", "uid": "${DS_INFLUXDB}"},
-          "query": "from(bucket: \"gemelo\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"validacion_interior\")\n  |> filter(fn: (r) => r._field == \"error_C\" or r._field == \"error_alta_C\")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> yield(name: \"mean\")",
+          "query": "from(bucket: \"gemelo\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"validacion_interior\")\n  |> filter(fn: (r) => r._field == \"error_C\" or r._field == \"error_alta_C\" or r._field == \"error_baja_C\")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> yield(name: \"mean\")",
           "refId": "A"
         }
       ],
@@ -624,6 +640,92 @@
       ],
       "title": "RMSE alta (α=0.80) [°C]",
       "type": "stat"
+    },
+
+    {
+      "collapsed": false,
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 34},
+      "id": 18,
+      "title": "Métricas — Modelo baja asimilación (α=0.20) — ventana temporal seleccionada",
+      "type": "row"
+    },
+
+    {
+      "datasource": {"type": "influxdb", "uid": "${DS_INFLUXDB}"},
+      "description": "MAE = promedio de |error_baja| del modelo con α=0.20 en la ventana temporal.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "celsius",
+          "decimals": 3,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green",  "value": null},
+              {"color": "yellow", "value": 0.5},
+              {"color": "red",    "value": 1}
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 5, "w": 8, "x": 0, "y": 35},
+      "id": 19,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {"type": "influxdb", "uid": "${DS_INFLUXDB}"},
+          "query": "import \"math\"\nfrom(bucket: \"gemelo\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"validacion_interior\")\n  |> filter(fn: (r) => r._field == \"error_baja_C\")\n  |> map(fn: (r) => ({r with _value: math.abs(x: r._value)}))\n  |> mean()\n  |> yield(name: \"MAE baja\")",
+          "refId": "A"
+        }
+      ],
+      "title": "MAE baja (α=0.20) [°C]",
+      "type": "stat"
+    },
+
+    {
+      "datasource": {"type": "influxdb", "uid": "${DS_INFLUXDB}"},
+      "description": "RMSE del modelo con baja asimilación (α=0.20) en la ventana temporal. Comparar con RMSE del modelo nominal (α=0.60).",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "celsius",
+          "decimals": 3,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green",  "value": null},
+              {"color": "yellow", "value": 0.5},
+              {"color": "red",    "value": 1}
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 5, "w": 8, "x": 8, "y": 35},
+      "id": 20,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {"type": "influxdb", "uid": "${DS_INFLUXDB}"},
+          "query": "import \"math\"\nfrom(bucket: \"gemelo\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"validacion_interior\")\n  |> filter(fn: (r) => r._field == \"error_baja_C\")\n  |> map(fn: (r) => ({r with _value: r._value * r._value}))\n  |> mean()\n  |> map(fn: (r) => ({r with _value: math.sqrt(x: r._value)}))\n  |> yield(name: \"RMSE baja\")",
+          "refId": "A"
+        }
+      ],
+      "title": "RMSE baja (α=0.20) [°C]",
+      "type": "stat"
     }
   ],
 
@@ -651,5 +753,5 @@
   "timezone": "browser",
   "title": "Gemelo Digital — Validación Interior",
   "uid": "gemelo-validacion-int",
-  "version": 2
+  "version": 3
 }

@@ -114,6 +114,7 @@ def R_real(z_val):
 h_ext        = config.MODELO_H_EXT
 alpha_K      = config.MODELO_ALPHA_K        # ganancia nominal
 ALPHA_K_ALTA = config.MODELO_ALPHA_K_ALTA   # ganancia alta para comparación
+ALPHA_K_BAJA = config.MODELO_ALPHA_K_BAJA   # ganancia baja para comparación
 T_amb   = 25.0   # temperatura ambiente [°C] — se actualiza dinámicamente
 
 # Coeficiente global U [W/(m²·°C)]: 1/U = e_pared/k_pared + 1/h_ext
@@ -138,6 +139,7 @@ app = Flask(__name__)
 imagen_actual = None
 imagen_libre  = None
 imagen_alta   = None
+imagen_baja   = None
 
 def _cors(response):
     response.headers["Access-Control-Allow-Origin"] = "*"
@@ -163,6 +165,13 @@ def heatmap_alta():
     if imagen_alta is None:
         return "Sin datos aún", 503
     return send_file(io.BytesIO(imagen_alta), mimetype='image/png')
+
+@app.route('/heatmap_baja')
+def heatmap_baja():
+    global imagen_baja
+    if imagen_baja is None:
+        return "Sin datos aún", 503
+    return send_file(io.BytesIO(imagen_baja), mimetype='image/png')
 
 @app.route('/bomba/<comando>')
 def bomba_cmd(comando):
@@ -196,7 +205,7 @@ print("Servidor de imagen: http://192.168.1.104:5000/heatmap")
 
 # ── Cliente MQTT para comandos ─────────────────────────
 def on_modelo_message(client, userdata, msg):
-    global T, T_libre
+    global T, T_libre, T_alta, T_baja
     comando = msg.payload.decode().strip()
     print(f"Comando recibido: {comando}")
     if comando.startswith("fluido/"):
@@ -206,6 +215,8 @@ def on_modelo_message(client, userdata, msg):
         print("Reiniciando condición inicial con sensores de pared...")
         T = condicion_inicial_dinamica()
         T_libre = T.copy()
+        T_alta   = T.copy()
+        T_baja   = T.copy()
         escribir_condicion_inicial(T, "sensores")
     elif comando == "inicio/sup":
         t_sup = leer_t_sup()
@@ -213,11 +224,15 @@ def on_modelo_message(client, userdata, msg):
             print(f"Iniciando con T_sup={t_sup:.2f}°C (tanque superior)")
             T = np.ones((Nr, Nz)) * t_sup
             T_libre = T.copy()
+            T_alta   = T.copy()
+            T_baja   = T.copy()
             escribir_condicion_inicial(T, "t_sup")
         else:
             print("DS_SUP no disponible — usando sensores de pared")
             T = condicion_inicial_dinamica()
             T_libre = T.copy()
+            T_alta   = T.copy()
+            T_baja   = T.copy()
             escribir_condicion_inicial(T, "sensores")
 
 def on_modelo_connect(client, _userdata, _connect_flags, reason_code, _properties):
@@ -517,6 +532,22 @@ def escribir_modelo_alta(T):
             points.append(p)
     write.write(bucket=INFLUX_BUCKET, record=points)
 
+def escribir_modelo_baja(T):
+    ts = datetime.now(timezone.utc)
+    points = []
+    for i in range(Nr):
+        for j in range(Nz):
+            p = (Point("temperatura_modelo_baja")
+                 .tag("nodo_r", i)
+                 .tag("nodo_z", j)
+                 .tag("fluido", FLUIDO_ACTIVO)
+                 .field("T", float(T[i, j]))
+                 .field("r_cm", float(r[i] * 100))
+                 .field("z_cm", float(z[j] * 100))
+                 .time(ts))
+            points.append(p)
+    write.write(bucket=INFLUX_BUCKET, record=points)
+
 def generar_imagen_libre(T):
     global imagen_libre
     fig, ax = plt.subplots(figsize=(6, 7))
@@ -558,6 +589,27 @@ def generar_imagen_alta(T):
     plt.close()
     buf.seek(0)
     imagen_alta = buf.read()
+
+def generar_imagen_baja(T):
+    global imagen_baja
+    fig, ax = plt.subplots(figsize=(6, 7))
+    r_full = np.concatenate([-r[::-1], r[1:]]) * 100
+    T_full = np.concatenate([T[::-1, :], T[1:, :]], axis=0)
+    vmin = np.min(T)
+    vmax = np.max(T)
+    im = ax.contourf(r_full, z * 100, T_full.T, levels=20,
+                     cmap='plasma', vmin=vmin, vmax=vmax)
+    fig.colorbar(im, ax=ax, label='T [°C]', location='right', fraction=0.046, pad=0.04)
+    ax.set_xlabel('Radio [cm]')
+    ax.set_ylabel('Altura [cm]')
+    ax.set_title(f'T(r,z) — Modelo baja asimilación [{FLUIDO_ACTIVO}] (α={ALPHA_K_BAJA})\n'
+                 f'T_prom={np.mean(T):.2f}°C  ΔT={np.max(T)-np.min(T):.2f}°C')
+    ax.axvline(0, color='white', linewidth=0.8, linestyle='--', alpha=0.6)
+    buf = io.BytesIO()
+    plt.savefig(buf, format='png', dpi=100, bbox_inches='tight')
+    plt.close()
+    buf.seek(0)
+    imagen_baja = buf.read()
 
 def generar_imagen(T, V_niv_L=None, V_mod_L=None, masa_hx=None, M_mod=None, V_bal_L=None,
                    t_int_med=None, t_int_mod=None, t_int_libre=None):
@@ -659,6 +711,10 @@ print("Modelo libre inicializado (α_K=0, solo física)")
 T_alta = T.copy()
 print(f"Modelo alta asimilación inicializado (α_K={ALPHA_K_ALTA})")
 
+# Modelo baja asimilación: misma condición inicial, α_K=0.20
+T_baja = T.copy()
+print(f"Modelo baja asimilación inicializado (α_K={ALPHA_K_BAJA})")
+
 
 # ── Loop principal ─────────────────────────────────────
 print(f"Modelo 2D iniciado. Fluido: {FLUIDO_ACTIVO}. Actualizando cada {INTERVALO_S}s\n")
@@ -686,10 +742,12 @@ try:
             T       = paso_tiempo(T)
             T_libre = paso_tiempo(T_libre)
             T_alta  = paso_tiempo(T_alta)
+            T_baja  = paso_tiempo(T_baja)
 
         if temps:
             T       = actualizar_con_sensores(T,      temps)
             T_alta  = actualizar_con_sensores(T_alta, temps, alpha=ALPHA_K_ALTA)
+            T_baja  = actualizar_con_sensores(T_baja, temps, alpha=ALPHA_K_BAJA)
             print(f"Sensores: {[round(t,2) for t in temps]}")
 
         # Volumen y masa
@@ -727,10 +785,12 @@ try:
         t_int_med   = leer_t_int()
         t_int_mod   = float(T[0, _INT_J])
         t_int_alta  = float(T_alta[0, _INT_J])
+        t_int_baja  = float(T_baja[0, _INT_J])
         t_int_libre = float(T_libre[0, _INT_J])
         if t_int_med is not None and ciclo % 6 == 0:
             error_asim  = t_int_mod   - t_int_med
             error_alta  = t_int_alta  - t_int_med
+            error_baja  = t_int_baja  - t_int_med
             error_libre = t_int_libre - t_int_med
             ts_now = datetime.now(timezone.utc)
             p_val = (Point("validacion_interior")
@@ -739,6 +799,8 @@ try:
                      .field("error_C",        round(error_asim,  3))
                      .field("T_alta_C",       round(t_int_alta,  3))
                      .field("error_alta_C",   round(error_alta,  3))
+                     .field("T_baja_C",       round(t_int_baja,  3))
+                     .field("error_baja_C",   round(error_baja,  3))
                      .field("T_libre_C",      round(t_int_libre, 3))
                      .field("error_libre_C",  round(error_libre, 3))
                      .field("nodo_z_cm",      round(float(z[_INT_J] * 100), 1))
@@ -747,6 +809,7 @@ try:
             print(f"  DS_INT: med={t_int_med:.2f}°C | "
                   f"asim={t_int_mod:.2f}°C (err {error_asim:+.2f}) | "
                   f"alta={t_int_alta:.2f}°C (err {error_alta:+.2f}) | "
+                  f"baja={t_int_baja:.2f}°C (err {error_baja:+.2f}) | "
                   f"libre={t_int_libre:.2f}°C (err {error_libre:+.2f})")
 
         generar_imagen(T, V_niv_L, V_mod_L, masa_hx, M_mod, V_bal_L,
@@ -755,11 +818,13 @@ try:
                        t_int_libre=t_int_libre if t_int_med is not None else None)
         generar_imagen_libre(T_libre)
         generar_imagen_alta(T_alta)
+        generar_imagen_baja(T_baja)
 
         if ciclo % 6 == 0:   # escribir en InfluxDB cada 60 segundos
             escribir_modelo(T)
             escribir_modelo_libre(T_libre)
             escribir_modelo_alta(T_alta)
+            escribir_modelo_baja(T_baja)
 
         T_prom = np.mean(T)
         T_max  = np.max(T)
