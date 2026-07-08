@@ -612,7 +612,7 @@ def generar_imagen_baja(T):
     imagen_baja = buf.read()
 
 def generar_imagen(T, V_niv_L=None, V_mod_L=None, masa_hx=None, M_mod=None, V_bal_L=None,
-                   t_int_med=None, t_int_mod=None, t_int_libre=None):
+                   t_int_med=None, t_int_mod=None, t_int_alta=None, t_int_baja=None, t_int_libre=None):
     global imagen_actual
     fig, ax = plt.subplots(figsize=(6, 7))
     r_full = np.concatenate([-r[::-1], r[1:]]) * 100
@@ -666,14 +666,20 @@ def generar_imagen(T, V_niv_L=None, V_mod_L=None, masa_hx=None, M_mod=None, V_ba
                 f'M modelo : {M_mod:.3f} kg',
             ]
     if t_int_med is not None and t_int_mod is not None:
-        error_asim  = t_int_mod   - t_int_med
+        error_asim  = t_int_mod  - t_int_med
         lineas += [
-            f'T int med   : {t_int_med:.2f} °C',
-            f'T int asim  : {t_int_mod:.2f} °C  (err {error_asim:+.2f})',
+            f'T int med        : {t_int_med:.2f} °C',
+            f'T asim α=0.60    : {t_int_mod:.2f} °C  (err {error_asim:+.2f})',
         ]
+        if t_int_alta is not None:
+            error_alta = t_int_alta - t_int_med
+            lineas.append(f'T alta α=0.80    : {t_int_alta:.2f} °C  (err {error_alta:+.2f})')
+        if t_int_baja is not None:
+            error_baja = t_int_baja - t_int_med
+            lineas.append(f'T baja α=0.20    : {t_int_baja:.2f} °C  (err {error_baja:+.2f})')
         if t_int_libre is not None:
             error_libre = t_int_libre - t_int_med
-            lineas.append(f'T int libre : {t_int_libre:.2f} °C  (err {error_libre:+.2f})')
+            lineas.append(f'T libre α=0.00   : {t_int_libre:.2f} °C  (err {error_libre:+.2f})')
     if lineas:
         ax.text(0.02, 0.02, '\n'.join(lineas), transform=ax.transAxes,
                 fontsize=7, verticalalignment='bottom',
@@ -814,7 +820,9 @@ try:
 
         generar_imagen(T, V_niv_L, V_mod_L, masa_hx, M_mod, V_bal_L,
                        t_int_med=t_int_med,
-                       t_int_mod=t_int_mod   if t_int_med is not None else None,
+                       t_int_mod=t_int_mod    if t_int_med is not None else None,
+                       t_int_alta=t_int_alta  if t_int_med is not None else None,
+                       t_int_baja=t_int_baja  if t_int_med is not None else None,
                        t_int_libre=t_int_libre if t_int_med is not None else None)
         generar_imagen_libre(T_libre)
         generar_imagen_alta(T_alta)
