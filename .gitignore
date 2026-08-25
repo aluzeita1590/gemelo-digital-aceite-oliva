@@ -212,3 +212,6 @@ CLAUDE (1).md
 
 # Resultados de calibración (imágenes generadas localmente)
 capa3_modelo/resultados_calibracion/*.png
+
+# Estado runtime del modelo (fluido activo persistido entre reinicios)
+.fluido_estado.json

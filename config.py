@@ -43,6 +43,12 @@ TANQUE_PARED_K         = 0.45    # [W/(m·°C)] — conductividad térmica del m
 # ── Capa 1 — Sensor (RPi Zero 2W) ───────────────────────────
 INTERVALO_SENSOR_S = 10   # segundos entre publicaciones MQTT
 
+# Tope de la cola MQTT en memoria (mensajes QoS>=1 pendientes de reconexión).
+# 8640 msg * 10s = 24h de lecturas retenidas (~5 MB) — muy por encima de cualquier
+# corte real observado (máximo 47,5 min en el período de validación de cap5).
+# Al llenarse, paho-mqtt descarta el mensaje más viejo, no el proceso.
+MQTT_COLA_MAX_MENSAJES = 8640
+
 PIN_TRIG   = 24           # GPIO BCM — HC-SR04
 PIN_ECHO   = 25
 PIN_BOMBA  = 21           # GPIO BCM — pin físico 40 — relé bomba (HIGH = activo)

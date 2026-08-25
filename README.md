@@ -189,6 +189,8 @@ TANQUE_PARED_K         = 16.0    # [W/(m·°C)]
 
 El fluido activo se selecciona en tiempo real con el comando MQTT `fluido/aceite` o `fluido/agua` (ver sección Comandos MQTT). Al cambiar de fluido el modelo recalcula el paso temporal `dt` para mantener la estabilidad de Von Neumann.
 
+La selección se persiste en `capa3_modelo/.fluido_estado.json` (no versionado) cada vez que se recibe el comando. Al arrancar, `modelo.py` restaura el último fluido guardado en vez de usar siempre `MODELO_FLUIDO_DEFAULT` de `config.py` — así un reinicio del servicio (crash, `git pull`, reboot) no revierte silenciosamente una prueba en curso con agua al default de aceite.
+
 ### Versiones de referencia (archivos standalone)
 
 | Versión | Grilla | Laplaciano | Archivo |
@@ -437,6 +439,25 @@ El modelo termofísico escribe sus resultados directamente en InfluxDB (bucket `
 | Datos del modelo T(r,z) | ✓ | ✗ |
 | Heatmap | ✓ | ✗ |
 | Métricas sistema RPi 5 | ✗ | ✓ |
+
+---
+
+### Robustez ante cortes de Wi-Fi
+
+`sensor.py` publica cada lectura con `qos=1` y una cola de reconexión acotada a
+`config.MQTT_COLA_MAX_MENSAJES` (8640 mensajes = 24 h de lecturas, ~5 MB en RAM). Si se
+corta el enlace entre el nodo `sensor` y el broker, paho-mqtt retiene los mensajes en
+memoria y los reenvía automáticamente al reconectar (`reconnect_delay_set`, 1–30 s de
+backoff) — antes se usaba QoS 0 y esas lecturas se descartaban sin más. El tope evita que
+un corte anormalmente largo (días) haga crecer la cola sin límite; si se llena, paho
+descarta el mensaje más viejo, no el proceso. El peor corte real medido en el período de
+validación de cap5 fue de 47,5 min (~285 mensajes, ~180 KB) — muy por debajo del tope.
+
+Esto solo cubre el proceso vivo: si `sensor.service` o la RPi se reinician durante el
+corte, la cola en memoria se pierde igual (no hay persistencia en disco). El payload
+incluye `ts_epoch` (hora real de la medición, `time.time()`), que `suscriptor.py` usa para
+timestampear el punto en InfluxDB en vez de la hora de llegada — así una lectura reenviada
+con retraso por la cola no queda mal ubicada en el tiempo.
 
 ---
 

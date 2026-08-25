@@ -110,6 +110,7 @@ _pulsos_entrada = 0
 _pulsos_salida  = 0
 vol_entrada_l   = 0.0
 vol_salida_l    = 0.0
+_lock_pulsos    = threading.Lock()   # protege el reset de _pulsos_* contra el hilo de conteo
 
 def _hilo_flujo():
     global _pulsos_entrada, _pulsos_salida
@@ -119,9 +120,11 @@ def _hilo_flujo():
         curr_ent = GPIO.input(PIN_FLUJO_ENTRADA)
         curr_sal = GPIO.input(PIN_FLUJO_SALIDA)
         if prev_ent == 0 and curr_ent == 1:
-            _pulsos_entrada += 1
+            with _lock_pulsos:
+                _pulsos_entrada += 1
         if prev_sal == 0 and curr_sal == 1:
-            _pulsos_salida += 1
+            with _lock_pulsos:
+                _pulsos_salida += 1
         prev_ent = curr_ent
         prev_sal = curr_sal
         time.sleep(0.002)
@@ -131,8 +134,9 @@ threading.Thread(target=_hilo_flujo, daemon=True).start()
 def leer_flujo():
     """Lee pulsos acumulados desde el último ciclo y calcula caudal + volumen."""
     global _pulsos_entrada, _pulsos_salida, vol_entrada_l, vol_salida_l
-    p_ent = _pulsos_entrada;  _pulsos_entrada = 0
-    p_sal = _pulsos_salida;   _pulsos_salida  = 0
+    with _lock_pulsos:
+        p_ent = _pulsos_entrada;  _pulsos_entrada = 0
+        p_sal = _pulsos_salida;   _pulsos_salida  = 0
     litros_ent = p_ent / PULSOS_POR_LITRO_ENTRADA
     litros_sal = p_sal / PULSOS_POR_LITRO_SALIDA
     vol_entrada_l += litros_ent
@@ -208,6 +212,7 @@ def on_message(client, userdata, msg):
 mqtt_client.on_connect = on_connect
 mqtt_client.on_message = on_message
 mqtt_client.reconnect_delay_set(min_delay=1, max_delay=30)
+mqtt_client.max_queued_messages_set(config.MQTT_COLA_MAX_MENSAJES)   # tope de RAM; descarta el más viejo si se llena
 mqtt_client.connect(MQTT_BROKER, MQTT_PORT, keepalive=60)
 mqtt_client.loop_start()
 
@@ -349,6 +354,7 @@ try:
         flujo = leer_flujo()
         payload = {
             "ts":         ciclo,
+            "ts_epoch":   time.time(),   # hora real de la medición, no de llegada al broker
             "ciclo":      ciclo,
             "temp":       temps,
             "nivel_m":    nivel,
@@ -360,7 +366,9 @@ try:
             "bomba":      bomba_activa,
             **flujo,
         }
-        mqtt_client.publish(MQTT_TOPIC, json.dumps(payload))
+        # QoS 1: si se corta el Wi-Fi, paho-mqtt encola el mensaje en memoria y
+        # lo reenvía solo al reconectar, en vez de descartarlo (QoS 0 anterior).
+        mqtt_client.publish(MQTT_TOPIC, json.dumps(payload), qos=1)
         print(f"Ciclo {ciclo} | T={temps} | nivel={nivel}m | masa={masa}kg")
         time.sleep(INTERVALO_S)
 

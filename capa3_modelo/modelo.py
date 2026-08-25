@@ -8,6 +8,7 @@ Versión con condición inicial dinámica y selección de fluido por MQTT.
 import os
 import sys
 import time
+import json
 import numpy as np
 import matplotlib
 matplotlib.use('Agg')
@@ -68,8 +69,27 @@ FLUIDOS = {
     }
 }
 
-# Fluido activo
-FLUIDO_ACTIVO = config.MODELO_FLUIDO_DEFAULT
+# Fluido activo — persistido en disco para sobrevivir reinicios del servicio.
+# Sin esto, cada reinicio de modelo.service (crash, git pull, reboot de la RPi)
+# perdía la selección hecha por MQTT y volvía silenciosamente al default de
+# config.py, incluso en medio de una prueba con otro fluido.
+FLUIDO_ESTADO_PATH = os.path.join(_config_dir, ".fluido_estado.json")
+
+def _leer_fluido_guardado():
+    try:
+        with open(FLUIDO_ESTADO_PATH) as f:
+            return json.load(f).get("fluido")
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return None
+
+def _guardar_fluido(nombre):
+    try:
+        with open(FLUIDO_ESTADO_PATH, "w") as f:
+            json.dump({"fluido": nombre}, f)
+    except OSError as e:
+        print(f"[WARN] No se pudo guardar estado de fluido en disco: {e}")
+
+FLUIDO_ACTIVO = _leer_fluido_guardado() or config.MODELO_FLUIDO_DEFAULT
 rho_0 = alpha = T_0 = Cp = k = None
 
 def cargar_fluido(nombre):
@@ -84,6 +104,7 @@ def cargar_fluido(nombre):
     Cp        = props["Cp"]
     k         = props["k"]
     FLUIDO_ACTIVO = nombre
+    _guardar_fluido(nombre)
     # Recalcular dt con Von Neumann para el nuevo fluido
     rho_min   = rho_0 - alpha * (40.0 - T_0)
     alpha_t   = k / (rho_min * Cp)
@@ -126,7 +147,10 @@ U_ext = 1.0 / (_e / _k + 1.0 / h_ext)
 # dt se define dentro de cargar_fluido
 dt = 30.0
 
-# Cargar fluido inicial
+# Cargar fluido inicial — restaurado desde disco si hubo una selección previa
+# por MQTT, o el default de config.py en el primer arranque.
+_fluido_origen = "estado guardado" if _leer_fluido_guardado() else "default de config.py"
+print(f"Fluido inicial: {FLUIDO_ACTIVO} ({_fluido_origen})")
 cargar_fluido(FLUIDO_ACTIVO)
 
 # ── Cliente InfluxDB ───────────────────────────────────

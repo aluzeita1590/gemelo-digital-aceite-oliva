@@ -58,7 +58,13 @@ def on_message(client, userdata, msg):
             print(f"[DESCARTADO] {motivo}")
             return
 
-        ts = datetime.now(timezone.utc)
+        # Usar la hora real de la medición (ts_epoch) si viene en el payload, en
+        # vez de la hora de llegada: con QoS 1, un mensaje retenido por un corte
+        # de Wi-Fi puede llegar minutos después de haberse tomado la lectura, y
+        # sin esto quedaría mal ubicado en el tiempo en InfluxDB.
+        ts_epoch = datos.get("ts_epoch")
+        ts = datetime.fromtimestamp(ts_epoch, tz=timezone.utc) if ts_epoch is not None \
+            else datetime.now(timezone.utc)
 
         # Escribir temperaturas
         temps = datos.get("temp", [])
