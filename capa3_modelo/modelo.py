@@ -136,6 +136,9 @@ h_ext        = config.MODELO_H_EXT
 alpha_K      = config.MODELO_ALPHA_K        # ganancia nominal
 ALPHA_K_ALTA = config.MODELO_ALPHA_K_ALTA   # ganancia alta para comparación
 ALPHA_K_BAJA = config.MODELO_ALPHA_K_BAJA   # ganancia baja para comparación
+ALPHA_K_A30  = config.MODELO_ALPHA_K_A30    # exploratoria — acota el óptimo de cap5
+ALPHA_K_A35  = config.MODELO_ALPHA_K_A35    # exploratoria — acota el óptimo de cap5
+ALPHA_K_A40  = config.MODELO_ALPHA_K_A40    # exploratoria — acota el óptimo de cap5
 T_amb   = 25.0   # temperatura ambiente [°C] — se actualiza dinámicamente
 
 # Coeficiente global U [W/(m²·°C)]: 1/U = e_pared/k_pared + 1/h_ext
@@ -229,7 +232,7 @@ print("Servidor de imagen: http://192.168.1.104:5000/heatmap")
 
 # ── Cliente MQTT para comandos ─────────────────────────
 def on_modelo_message(client, userdata, msg):
-    global T, T_libre, T_alta, T_baja
+    global T, T_libre, T_alta, T_baja, T_a30, T_a35, T_a40
     comando = msg.payload.decode().strip()
     print(f"Comando recibido: {comando}")
     if comando.startswith("fluido/"):
@@ -241,6 +244,9 @@ def on_modelo_message(client, userdata, msg):
         T_libre = T.copy()
         T_alta   = T.copy()
         T_baja   = T.copy()
+        T_a30    = T.copy()
+        T_a35    = T.copy()
+        T_a40    = T.copy()
         escribir_condicion_inicial(T, "sensores")
     elif comando == "inicio/sup":
         t_sup = leer_t_sup()
@@ -250,6 +256,9 @@ def on_modelo_message(client, userdata, msg):
             T_libre = T.copy()
             T_alta   = T.copy()
             T_baja   = T.copy()
+            T_a30    = T.copy()
+            T_a35    = T.copy()
+            T_a40    = T.copy()
             escribir_condicion_inicial(T, "t_sup")
         else:
             print("DS_SUP no disponible — usando sensores de pared")
@@ -257,6 +266,9 @@ def on_modelo_message(client, userdata, msg):
             T_libre = T.copy()
             T_alta   = T.copy()
             T_baja   = T.copy()
+            T_a30    = T.copy()
+            T_a35    = T.copy()
+            T_a40    = T.copy()
             escribir_condicion_inicial(T, "sensores")
 
 def on_modelo_connect(client, _userdata, _connect_flags, reason_code, _properties):
@@ -745,6 +757,12 @@ print(f"Modelo alta asimilación inicializado (α_K={ALPHA_K_ALTA})")
 T_baja = T.copy()
 print(f"Modelo baja asimilación inicializado (α_K={ALPHA_K_BAJA})")
 
+# Variantes exploratorias (sin heatmap propio) para acotar el óptimo de cap5
+T_a30 = T.copy()
+T_a35 = T.copy()
+T_a40 = T.copy()
+print(f"Variantes exploratorias inicializadas (α_K={ALPHA_K_A30}, {ALPHA_K_A35}, {ALPHA_K_A40})")
+
 
 # ── Loop principal ─────────────────────────────────────
 print(f"Modelo 2D iniciado. Fluido: {FLUIDO_ACTIVO}. Actualizando cada {INTERVALO_S}s\n")
@@ -773,11 +791,17 @@ try:
             T_libre = paso_tiempo(T_libre)
             T_alta  = paso_tiempo(T_alta)
             T_baja  = paso_tiempo(T_baja)
+            T_a30   = paso_tiempo(T_a30)
+            T_a35   = paso_tiempo(T_a35)
+            T_a40   = paso_tiempo(T_a40)
 
         if temps:
             T       = actualizar_con_sensores(T,      temps)
             T_alta  = actualizar_con_sensores(T_alta, temps, alpha=ALPHA_K_ALTA)
             T_baja  = actualizar_con_sensores(T_baja, temps, alpha=ALPHA_K_BAJA)
+            T_a30   = actualizar_con_sensores(T_a30,  temps, alpha=ALPHA_K_A30)
+            T_a35   = actualizar_con_sensores(T_a35,  temps, alpha=ALPHA_K_A35)
+            T_a40   = actualizar_con_sensores(T_a40,  temps, alpha=ALPHA_K_A40)
             print(f"Sensores: {[round(t,2) for t in temps]}")
 
         # Volumen y masa
@@ -817,11 +841,17 @@ try:
         t_int_alta  = float(T_alta[0, _INT_J])
         t_int_baja  = float(T_baja[0, _INT_J])
         t_int_libre = float(T_libre[0, _INT_J])
+        t_int_a30   = float(T_a30[0, _INT_J])
+        t_int_a35   = float(T_a35[0, _INT_J])
+        t_int_a40   = float(T_a40[0, _INT_J])
         if t_int_med is not None and ciclo % 6 == 0:
             error_asim  = t_int_mod   - t_int_med
             error_alta  = t_int_alta  - t_int_med
             error_baja  = t_int_baja  - t_int_med
             error_libre = t_int_libre - t_int_med
+            error_a30   = t_int_a30   - t_int_med
+            error_a35   = t_int_a35   - t_int_med
+            error_a40   = t_int_a40   - t_int_med
             ts_now = datetime.now(timezone.utc)
             p_val = (Point("validacion_interior")
                      .field("T_medida_C",     round(t_int_med,   3))
@@ -833,6 +863,12 @@ try:
                      .field("error_baja_C",   round(error_baja,  3))
                      .field("T_libre_C",      round(t_int_libre, 3))
                      .field("error_libre_C",  round(error_libre, 3))
+                     .field("T_a30_C",        round(t_int_a30,   3))
+                     .field("error_a30_C",    round(error_a30,   3))
+                     .field("T_a35_C",        round(t_int_a35,   3))
+                     .field("error_a35_C",    round(error_a35,   3))
+                     .field("T_a40_C",        round(t_int_a40,   3))
+                     .field("error_a40_C",    round(error_a40,   3))
                      .field("nodo_z_cm",      round(float(z[_INT_J] * 100), 1))
                      .time(ts_now))
             write.write(bucket=INFLUX_BUCKET, record=p_val)
@@ -840,7 +876,10 @@ try:
                   f"asim={t_int_mod:.2f}°C (err {error_asim:+.2f}) | "
                   f"alta={t_int_alta:.2f}°C (err {error_alta:+.2f}) | "
                   f"baja={t_int_baja:.2f}°C (err {error_baja:+.2f}) | "
-                  f"libre={t_int_libre:.2f}°C (err {error_libre:+.2f})")
+                  f"libre={t_int_libre:.2f}°C (err {error_libre:+.2f}) | "
+                  f"a30={t_int_a30:.2f}°C (err {error_a30:+.2f}) | "
+                  f"a35={t_int_a35:.2f}°C (err {error_a35:+.2f}) | "
+                  f"a40={t_int_a40:.2f}°C (err {error_a40:+.2f})")
 
         generar_imagen(T, V_niv_L, V_mod_L, masa_hx, M_mod, V_bal_L,
                        t_int_med=t_int_med,

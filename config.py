@@ -97,5 +97,12 @@ MODELO_ALPHA_K      = 0.6   # ganancia asimilación nominal  (0=solo modelo, 1=s
 MODELO_ALPHA_K_ALTA = 0.8   # ganancia asimilación alta para comparación
 MODELO_ALPHA_K_BAJA = 0.2   # ganancia asimilación baja para comparación
 
+# Variantes exploratorias para acotar el óptimo de alpha_K (vértice del ajuste
+# cuadrático de cap5 en α≈0,36) — sin heatmap propio, solo registran su
+# temperatura de validación en el measurement 'validacion_interior'.
+MODELO_ALPHA_K_A30 = 0.30
+MODELO_ALPHA_K_A35 = 0.35
+MODELO_ALPHA_K_A40 = 0.40
+
 MODELO_FLUIDO_DEFAULT = "aceite"   # "aceite" | "agua"
 MODELO_IC_DEFAULT     = "t_sup"    # condición inicial al arrancar: "t_sup" | "sensores"

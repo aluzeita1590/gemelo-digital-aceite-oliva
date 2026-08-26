@@ -43,8 +43,8 @@ except ImportError:
 # Se pueden sobreescribir con duraciones relativas Flux (ej. "-24h", "-12h")
 # o timestamps ISO 8601, vía T_INICIO_OVERRIDE / T_FIN_OVERRIDE:
 #   T_INICIO_OVERRIDE=-24h T_FIN_OVERRIDE=now() python analisis_cap5.py
-T_INICIO = os.environ.get("T_INICIO_OVERRIDE", "2026-07-25T00:00:00Z")
-T_FIN    = os.environ.get("T_FIN_OVERRIDE", "2026-08-25T00:00:00Z")
+T_INICIO = os.environ.get("T_INICIO_OVERRIDE", "2026-08-19T00:00:00Z")
+T_FIN    = os.environ.get("T_FIN_OVERRIDE", "2026-08-26T00:00:00Z")
 
 OUT_DIR = os.path.join(_script_dir, "resultados_cap5")
 os.makedirs(OUT_DIR, exist_ok=True)
@@ -92,7 +92,9 @@ def leer_validacion():
         )
     campos = ["T_medida_C", "T_modelo_C", "error_C",
               "T_alta_C", "error_alta_C", "T_baja_C", "error_baja_C",
-              "T_libre_C", "error_libre_C"]
+              "T_libre_C", "error_libre_C",
+              "T_a30_C", "error_a30_C", "T_a35_C", "error_a35_C",
+              "T_a40_C", "error_a40_C"]
     datos = {c: [] for c in campos}
     t0 = records[0].get_time().timestamp()
     t = []
@@ -128,6 +130,9 @@ def reportar_metricas(datos):
     variantes = [
         ("Sin asimilación (α=0,00)", "T_libre_C"),
         ("Baja (α=0,20)",            "T_baja_C"),
+        ("α=0,30 (exploratoria)",    "T_a30_C"),
+        ("α=0,35 (exploratoria)",    "T_a35_C"),
+        ("α=0,40 (exploratoria)",    "T_a40_C"),
         ("Nominal (α=0,60)",         "T_modelo_C"),
         ("Alta (α=0,80)",            "T_alta_C"),
     ]

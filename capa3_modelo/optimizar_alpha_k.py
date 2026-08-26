@@ -38,8 +38,8 @@ except ImportError:
     pass
 
 # ── Parámetros del experimento — AJUSTAR antes de correr ──────────
-T_INICIO = "2026-07-25T00:00:00Z"
-T_FIN    = "2026-08-25T00:00:00Z"
+T_INICIO = "2026-08-19T00:00:00Z"
+T_FIN    = "2026-08-26T00:00:00Z"
 FLUIDO   = config.MODELO_FLUIDO_DEFAULT   # "aceite", consistente con producción
 
 # Barrido grueso, luego se refina ±0.04 en pasos de 0.01 alrededor del óptimo

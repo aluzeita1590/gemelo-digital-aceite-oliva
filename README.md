@@ -252,6 +252,8 @@ En cada ciclo de 60 segundos el modelo escribe el measurement `validacion_interi
 | `error_C` | Diferencia T_modelo − T_medida [°C] |
 | `nodo_z_cm` | Posición axial del nodo de comparación [cm] |
 
+Además de la variante nominal (`alpha_K`), el mismo punto incluye `T_alta_C`/`error_alta_C` (α=0,80), `T_baja_C`/`error_baja_C` (α=0,20) y `T_libre_C`/`error_libre_C` (α=0, sin asimilación) — variantes con heatmap propio (`/heatmap_alta`, `/heatmap_baja`, `/heatmap_libre`) que corren en paralelo para comparación. También se agregaron tres variantes exploratorias sin heatmap propio, solo para acotar el óptimo de `alpha_K` encontrado en el Capítulo 5 de la tesis (vértice≈0,36): `T_a30_C`/`error_a30_C` (α=0,30), `T_a35_C`/`error_a35_C` (α=0,35) y `T_a40_C`/`error_a40_C` (α=0,40).
+
 El heatmap muestra un **punto cian** en la posición del sensor y los valores T int med / T int mod / Error int en el cuadro inferior.
 
 Con la corrección geométrica, la diferencia entre V_nivel y V_modelo se redujo de 14% a ~7%.

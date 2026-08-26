@@ -726,6 +726,264 @@
       ],
       "title": "RMSE baja (α=0.20) [°C]",
       "type": "stat"
+    },
+
+    {
+      "collapsed": false,
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 40},
+      "id": 21,
+      "title": "Métricas — α=0.30 (exploratoria) — ventana temporal seleccionada",
+      "type": "row"
+    },
+
+    {
+      "datasource": {"type": "influxdb", "uid": "${DS_INFLUXDB}"},
+      "description": "MAE = promedio de |error_a30| del modelo con α=0.30 en la ventana temporal.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "celsius",
+          "decimals": 3,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green",  "value": null},
+              {"color": "yellow", "value": 0.5},
+              {"color": "red",    "value": 1}
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 5, "w": 8, "x": 0, "y": 41},
+      "id": 22,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {"type": "influxdb", "uid": "${DS_INFLUXDB}"},
+          "query": "import \"math\"\nfrom(bucket: \"gemelo\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"validacion_interior\")\n  |> filter(fn: (r) => r._field == \"error_a30_C\")\n  |> map(fn: (r) => ({r with _value: math.abs(x: r._value)}))\n  |> mean()\n  |> yield(name: \"MAE a30\")",
+          "refId": "A"
+        }
+      ],
+      "title": "MAE α=0.30 [°C]",
+      "type": "stat"
+    },
+
+    {
+      "datasource": {"type": "influxdb", "uid": "${DS_INFLUXDB}"},
+      "description": "RMSE del modelo con α=0.30 en la ventana temporal. Comparar con el resto de las variantes.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "celsius",
+          "decimals": 3,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green",  "value": null},
+              {"color": "yellow", "value": 0.5},
+              {"color": "red",    "value": 1}
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 5, "w": 8, "x": 8, "y": 41},
+      "id": 23,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {"type": "influxdb", "uid": "${DS_INFLUXDB}"},
+          "query": "import \"math\"\nfrom(bucket: \"gemelo\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"validacion_interior\")\n  |> filter(fn: (r) => r._field == \"error_a30_C\")\n  |> map(fn: (r) => ({r with _value: r._value * r._value}))\n  |> mean()\n  |> map(fn: (r) => ({r with _value: math.sqrt(x: r._value)}))\n  |> yield(name: \"RMSE a30\")",
+          "refId": "A"
+        }
+      ],
+      "title": "RMSE α=0.30 [°C]",
+      "type": "stat"
+    },
+
+    {
+      "collapsed": false,
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 46},
+      "id": 24,
+      "title": "Métricas — α=0.35 (exploratoria) — ventana temporal seleccionada",
+      "type": "row"
+    },
+
+    {
+      "datasource": {"type": "influxdb", "uid": "${DS_INFLUXDB}"},
+      "description": "MAE = promedio de |error_a35| del modelo con α=0.35 en la ventana temporal.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "celsius",
+          "decimals": 3,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green",  "value": null},
+              {"color": "yellow", "value": 0.5},
+              {"color": "red",    "value": 1}
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 5, "w": 8, "x": 0, "y": 47},
+      "id": 25,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {"type": "influxdb", "uid": "${DS_INFLUXDB}"},
+          "query": "import \"math\"\nfrom(bucket: \"gemelo\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"validacion_interior\")\n  |> filter(fn: (r) => r._field == \"error_a35_C\")\n  |> map(fn: (r) => ({r with _value: math.abs(x: r._value)}))\n  |> mean()\n  |> yield(name: \"MAE a35\")",
+          "refId": "A"
+        }
+      ],
+      "title": "MAE α=0.35 [°C]",
+      "type": "stat"
+    },
+
+    {
+      "datasource": {"type": "influxdb", "uid": "${DS_INFLUXDB}"},
+      "description": "RMSE del modelo con α=0.35 en la ventana temporal. Comparar con el resto de las variantes.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "celsius",
+          "decimals": 3,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green",  "value": null},
+              {"color": "yellow", "value": 0.5},
+              {"color": "red",    "value": 1}
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 5, "w": 8, "x": 8, "y": 47},
+      "id": 26,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {"type": "influxdb", "uid": "${DS_INFLUXDB}"},
+          "query": "import \"math\"\nfrom(bucket: \"gemelo\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"validacion_interior\")\n  |> filter(fn: (r) => r._field == \"error_a35_C\")\n  |> map(fn: (r) => ({r with _value: r._value * r._value}))\n  |> mean()\n  |> map(fn: (r) => ({r with _value: math.sqrt(x: r._value)}))\n  |> yield(name: \"RMSE a35\")",
+          "refId": "A"
+        }
+      ],
+      "title": "RMSE α=0.35 [°C]",
+      "type": "stat"
+    },
+
+    {
+      "collapsed": false,
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 52},
+      "id": 27,
+      "title": "Métricas — α=0.40 (exploratoria) — ventana temporal seleccionada",
+      "type": "row"
+    },
+
+    {
+      "datasource": {"type": "influxdb", "uid": "${DS_INFLUXDB}"},
+      "description": "MAE = promedio de |error_a40| del modelo con α=0.40 en la ventana temporal.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "celsius",
+          "decimals": 3,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green",  "value": null},
+              {"color": "yellow", "value": 0.5},
+              {"color": "red",    "value": 1}
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 5, "w": 8, "x": 0, "y": 53},
+      "id": 28,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {"type": "influxdb", "uid": "${DS_INFLUXDB}"},
+          "query": "import \"math\"\nfrom(bucket: \"gemelo\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"validacion_interior\")\n  |> filter(fn: (r) => r._field == \"error_a40_C\")\n  |> map(fn: (r) => ({r with _value: math.abs(x: r._value)}))\n  |> mean()\n  |> yield(name: \"MAE a40\")",
+          "refId": "A"
+        }
+      ],
+      "title": "MAE α=0.40 [°C]",
+      "type": "stat"
+    },
+
+    {
+      "datasource": {"type": "influxdb", "uid": "${DS_INFLUXDB}"},
+      "description": "RMSE del modelo con α=0.40 en la ventana temporal. Comparar con el resto de las variantes.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "celsius",
+          "decimals": 3,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green",  "value": null},
+              {"color": "yellow", "value": 0.5},
+              {"color": "red",    "value": 1}
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 5, "w": 8, "x": 8, "y": 53},
+      "id": 29,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {"type": "influxdb", "uid": "${DS_INFLUXDB}"},
+          "query": "import \"math\"\nfrom(bucket: \"gemelo\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"validacion_interior\")\n  |> filter(fn: (r) => r._field == \"error_a40_C\")\n  |> map(fn: (r) => ({r with _value: r._value * r._value}))\n  |> mean()\n  |> map(fn: (r) => ({r with _value: math.sqrt(x: r._value)}))\n  |> yield(name: \"RMSE a40\")",
+          "refId": "A"
+        }
+      ],
+      "title": "RMSE α=0.40 [°C]",
+      "type": "stat"
     }
   ],
 
@@ -753,5 +1011,5 @@
   "timezone": "browser",
   "title": "Gemelo Digital — Validación Interior",
   "uid": "gemelo-validacion-int",
-  "version": 3
+  "version": 4
 }
