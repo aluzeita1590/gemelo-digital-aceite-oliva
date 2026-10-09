@@ -30,12 +30,12 @@ except ImportError:
     pass
 
 # ── Parámetros del experimento — AJUSTAR antes de correr ──────────
-T_INICIO = "2026-05-01T10:00:00Z"   # inicio del experimento (ISO 8601 UTC)
-T_FIN    = "2026-05-01T14:00:00Z"   # fin del experimento
+T_INICIO = "2026-10-06T20:00:00Z"   # pico de temperatura tras el llenado (6-oct 17:00 HSP)
+T_FIN    = "2026-10-07T16:30:00Z"   # convergencia con el ambiente (7-oct 13:30 HSP)
 FLUIDO   = "agua"                    # "aceite" | "agua"
 
 # Valores de h_ext a evaluar [W/(m²·°C)]
-H_EXT_VALORES = [2.0, 3.0, 5.0, 8.0, 10.0, 15.0]
+H_EXT_VALORES = [2.0, 3.0, 5.0, 8.0, 9.0, 10.0, 11.0, 12.0, 15.0]
 
 # ── Propiedades de fluidos ─────────────────────────────────────────
 FLUIDOS = {
@@ -59,7 +59,7 @@ _k_pared  = config.TANQUE_PARED_K
 
 # ── InfluxDB ───────────────────────────────────────────────────────
 INFLUX_TOKEN  = os.environ.get("INFLUX_TOKEN", "")
-INFLUX_URL    = config.INFLUX_URL
+INFLUX_URL    = os.environ.get("INFLUX_URL_OVERRIDE", config.INFLUX_URL)
 INFLUX_ORG    = config.INFLUX_ORG
 INFLUX_BUCKET = config.INFLUX_BUCKET
 
@@ -214,11 +214,14 @@ def main():
     print(f"\nMejor h_ext : {h_opt} W/(m²·°C)  —  RMSE = {resultados[h_opt]['rmse']:.4f} °C")
     print(f"Actualizar en config.py:  MODELO_H_EXT = {h_opt}")
 
-    # ── Gráficos ────────────────────────────────────────────────
+    # ── Gráficos (dos figuras separadas) ──────────────────────────
     colores = plt.cm.plasma(np.linspace(0.1, 0.9, len(H_EXT_VALORES)))
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
+    resultados_dir = os.path.join(_script_dir, 'resultados_calibracion')
+    os.makedirs(resultados_dir, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-    # Curvas de enfriamiento
+    # Figura 1: curvas de enfriamiento
+    fig1, ax1 = plt.subplots(figsize=(8, 5.5))
     nombres_ds = ['DS0', 'DS1', 'DS2', 'DS3', 'DS4']
     for i, nombre in enumerate(nombres_ds):
         ax1.plot(t_min, T_pared[i], '--', alpha=0.35, linewidth=0.9, label=nombre)
@@ -226,7 +229,7 @@ def main():
     ax1.plot(t_min, T_amb_arr, 'b:', linewidth=1.2, label='T ambiente')
 
     for (h, res), color in zip(resultados.items(), colores):
-        lw    = 2.5 if h == h_opt else 1.2
+        lw    = 2.5 if h == h_opt else 1.0
         label = f"h={h} (RMSE={res['rmse']:.3f}°C)"
         marker = ' ★' if h == h_opt else ''
         ax1.plot(t_min, res["T_sim"], color=color, linewidth=lw, label=label + marker)
@@ -236,8 +239,13 @@ def main():
     ax1.set_title('Curvas de enfriamiento — Sensores vs Modelo')
     ax1.legend(fontsize=7, loc='upper right')
     ax1.grid(True, alpha=0.3)
+    fig1.tight_layout()
+    out_path1 = os.path.join(resultados_dir, f'calibracion_h_ext_{FLUIDO}_curvas_{timestamp}.png')
+    fig1.savefig(out_path1, dpi=120, bbox_inches='tight')
+    print(f"\nFigura 1 (curvas) guardada: {out_path1}")
 
-    # RMSE por h_ext
+    # Figura 2: RMSE por h_ext
+    fig2, ax2 = plt.subplots(figsize=(7, 5.5))
     h_vals    = list(resultados.keys())
     rmse_vals = [resultados[h]["rmse"] for h in h_vals]
     idx_opt   = h_vals.index(h_opt)
@@ -252,17 +260,10 @@ def main():
     ax2.annotate(f'Óptimo\n{h_opt} W/m²K', xy=(idx_opt, rmse_vals[idx_opt]),
                  xytext=(idx_opt + 0.5, rmse_vals[idx_opt] + 0.01),
                  arrowprops=dict(arrowstyle='->', color='black'), fontsize=9)
-
-    plt.tight_layout()
-
-    # Guardar en carpeta resultados con timestamp para no sobreescribir
-    resultados_dir = os.path.join(_script_dir, 'resultados_calibracion')
-    os.makedirs(resultados_dir, exist_ok=True)
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    out_path = os.path.join(resultados_dir, f'calibracion_h_ext_{FLUIDO}_{timestamp}.png')
-    plt.savefig(out_path, dpi=120, bbox_inches='tight')
-    print(f"\nGráfico guardado: {out_path}")
-    plt.show()
+    fig2.tight_layout()
+    out_path2 = os.path.join(resultados_dir, f'calibracion_h_ext_{FLUIDO}_rmse_{timestamp}.png')
+    fig2.savefig(out_path2, dpi=120, bbox_inches='tight')
+    print(f"Figura 2 (RMSE) guardada: {out_path2}")
 
 
 if __name__ == "__main__":

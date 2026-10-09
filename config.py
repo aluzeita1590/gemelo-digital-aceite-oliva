@@ -92,7 +92,9 @@ INTERVALO_MODELO_S = 10   # segundos entre iteraciones del loop
 MODELO_NR = 15    # nodos radiales
 MODELO_NZ = 20    # nodos axiales
 
-MODELO_H_EXT        = 5.0   # coef. convección exterior [W/(m²·°C)] — pendiente calibrar
+MODELO_H_EXT        = 9.0   # coef. convección exterior [W/(m²·°C)] — calibrado 07-oct-2026
+                             # con experimento de enfriamiento natural (agua, RMSE=1,066°C;
+                             # ver capa3_modelo/calibrar_h_ext.py y cap4_implementacion.tex)
 MODELO_ALPHA_K      = 0.6   # ganancia asimilación nominal  (0=solo modelo, 1=solo sensor)
 MODELO_ALPHA_K_ALTA = 0.8   # ganancia asimilación alta para comparación
 MODELO_ALPHA_K_BAJA = 0.2   # ganancia asimilación baja para comparación
