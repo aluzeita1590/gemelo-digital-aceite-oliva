@@ -218,7 +218,7 @@ def sensor_cmd(comando):
 
 @app.route('/modelo/<path:comando>')
 def modelo_cmd(comando):
-    if comando not in ("fluido/aceite", "fluido/agua", "reset", "inicio/sup"):
+    if comando not in ("fluido/aceite", "fluido/agua", "reset", "inicio/sup", "inicio/int"):
         return _cors(app.make_response(("Comando inválido", 400)))
     modelo_mqtt.publish(config.MQTT_TOPIC_CMD_MODELO, comando)
     print(f"HTTP → modelo: {comando}")
@@ -262,6 +262,33 @@ def on_modelo_message(client, userdata, msg):
             escribir_condicion_inicial(T, "t_sup")
         else:
             print("DS_SUP no disponible — usando sensores de pared")
+            T = condicion_inicial_dinamica()
+            T_libre = T.copy()
+            T_alta   = T.copy()
+            T_baja   = T.copy()
+            T_a30    = T.copy()
+            T_a35    = T.copy()
+            T_a40    = T.copy()
+            escribir_condicion_inicial(T, "sensores")
+    elif comando == "inicio/int":
+        # Igual que "inicio/sup", pero lee DS_INT en vez de DS_SUP: el operador
+        # dispara este comando manualmente una vez que observa (p.ej. en Grafana)
+        # que la temperatura interior llegó a su máximo tras el llenado y
+        # comienza a enfriarse — evita el sesgo de usar DS_SUP (medido antes del
+        # trasvase, sin pérdidas de calor ni mezcla en el trayecto).
+        t_int = leer_t_int()
+        if t_int is not None:
+            print(f"Iniciando con T_int={t_int:.2f}°C (sensor interior, pico post-llenado)")
+            T = np.ones((Nr, Nz)) * t_int
+            T_libre = T.copy()
+            T_alta   = T.copy()
+            T_baja   = T.copy()
+            T_a30    = T.copy()
+            T_a35    = T.copy()
+            T_a40    = T.copy()
+            escribir_condicion_inicial(T, "t_int")
+        else:
+            print("DS_INT no disponible — usando sensores de pared")
             T = condicion_inicial_dinamica()
             T_libre = T.copy()
             T_alta   = T.copy()
